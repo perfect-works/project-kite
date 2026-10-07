@@ -1,0 +1,1302 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kite Thrust Model V2</title>
+<style>
+/* Plain engineering page: system fonts, white ground, thin gray rules, standard plot colors. */
+:root {
+  --sea: #ffffff;        /* page and map water */
+  --paper: #ffffff;      /* boxes */
+  --land: #e4e4e4;       /* map land */
+  --land-edge: #bdbdbd;
+  --ink: #1a1a1a;
+  --ink-2: #444444;
+  --ink-3: #777777;
+  --rule: #d0d0d0;
+  --kite: #1f6fb4;       /* eastbound, kite, thrust */
+  --west: #d06d0a;       /* westbound */
+  --wind: #2e8b57;       /* true wind */
+  --kite-soft: #e8f0f8;
+  --band: #f0f0f0;
+  --f-display: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --f-body: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --f-data: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius: 2px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --sea: #1b1d20; --paper: #1b1d20; --land: #33363a; --land-edge: #4a4e53;
+    --ink: #e6e6e6; --ink-2: #b8b8b8; --ink-3: #8c8c8c; --rule: #3a3d42;
+    --kite: #4a9be0; --west: #c97a28; --wind: #5bb37f; --kite-soft: #1f2d3a; --band: #26292d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --sea: #1b1d20; --paper: #1b1d20; --land: #33363a; --land-edge: #4a4e53;
+  --ink: #e6e6e6; --ink-2: #b8b8b8; --ink-3: #8c8c8c; --rule: #3a3d42;
+  --kite: #4a9be0; --west: #c97a28; --wind: #5bb37f; --kite-soft: #1f2d3a; --band: #26292d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--sea); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1000px; margin: 0 auto; padding-inline: 20px; padding-block: 20px 48px; }
+h1 { font-size: 1.6rem; font-weight: 600; margin: 0 0 4px; }
+h2 { font-size: 1.2rem; font-weight: 600; margin: 0; }
+h3 { font-size: 1rem; font-weight: 600; margin: 0; }
+.eyebrow { font-size: 0.85rem; color: var(--ink-3); }
+.sub { color: var(--ink-2); max-width: 70ch; margin: 4px 0 0; }
+.mono, .num { font-family: var(--f-data); font-variant-numeric: tabular-nums; }
+section { margin-top: 28px; }
+.sec-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; margin-bottom: 10px; border-bottom: 1px solid var(--rule); padding-bottom: 4px; }
+.sec-head p { margin: 0; color: var(--ink-3); font-size: 0.85rem; }
+
+/* sticky area bar */
+.areabar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--sea); border-bottom: 1px solid var(--rule); margin-top: 12px; padding-block: 8px; }
+.areabar-in { max-width: 1000px; margin: 0 auto; padding-inline: 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 20px; }
+.area-ctl { display: flex; align-items: center; gap: 10px; flex: 1 1 380px; min-width: 0; }
+.area-ctl label { font-weight: 600; white-space: nowrap; }
+.area-val { font-family: var(--f-data); font-size: 1rem; min-width: 7ch; text-align: right; white-space: nowrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 0 14px; font-size: 0.82rem; color: var(--ink-3); }
+.chip { white-space: nowrap; }
+input[type=range] { width: 100%; min-width: 0; accent-color: var(--kite); }
+input[type=range]:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* design inputs */
+.inputs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; align-items: start; }
+.inp { border: 1px solid var(--rule); padding: 8px 10px; min-width: 0; }
+.inp-head { display: flex; align-items: center; gap: 8px; }
+.inp-head label, .inp-head .label { font-weight: 600; flex: 1; min-width: 0; }
+.inp-val { font-family: var(--f-data); white-space: nowrap; }
+.inp-hint { font-size: 0.8rem; color: var(--ink-3); margin: 4px 0 0; line-height: 1.4; }
+.inp-hint b { font-weight: 600; color: var(--ink-2); }
+.inp.locked .inp-val { color: var(--ink-3); }
+.rule { border-top: 1px solid var(--rule); margin-top: 8px; padding-top: 6px; }
+.rule .label { font-weight: 600; font-size: 0.9rem; }
+.lock { flex: none; font: inherit; font-size: 0.78rem; padding: 1px 6px; border: 1px solid var(--rule); background: var(--paper); color: var(--ink-2); border-radius: var(--radius); cursor: pointer; }
+.lock[aria-pressed="true"] { background: var(--band); color: var(--ink); border-color: var(--ink-3); }
+.lock:focus-visible, .seg button:focus-visible { outline: 2px solid var(--kite); outline-offset: 1px; }
+.lock svg { display: none; }
+.sweep-stale { opacity: 0.35; }
+body.recalc #annual .tiles, body.recalc #annual .charts, body.recalc .pt-grid { opacity: 0.5; }
+
+/* annual results */
+.tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border: 1px solid var(--rule); }
+.tile { padding: 8px 12px 10px; border-left: 1px solid var(--rule); min-width: 0; }
+.tile:first-child { border-left: 0; }
+.tile .k { font-size: 0.85rem; color: var(--ink-2); display: flex; align-items: center; gap: 6px; }
+.tile .v { font-family: var(--f-data); font-size: 1.6rem; line-height: 1.2; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.tile.lead .v { font-weight: 600; }
+.tile .s { color: var(--ink-3); font-size: 0.82rem; }
+.sw { width: 10px; height: 10px; display: inline-block; flex: none; }
+.sw.e { background: var(--kite); } .sw.w { background: var(--west); }
+
+.charts { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+.panel { border: 1px solid var(--rule); padding: 10px 12px 8px; min-width: 0; position: relative; }
+.panel-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 12px; margin-bottom: 4px; }
+.legend { display: flex; flex-wrap: wrap; gap: 2px 12px; font-size: 0.82rem; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend .ln { width: 18px; height: 0; border-top: 2px solid var(--ink); display: inline-block; }
+.panel svg, figure svg { display: block; width: 100%; height: auto; }
+.panel svg text { font-family: var(--f-body); fill: var(--ink-3); font-size: 10.5px; }
+.note { font-size: 0.82rem; color: var(--ink-3); margin: 4px 0 0; }
+.tip { position: absolute; pointer-events: none; background: var(--paper); color: var(--ink); border: 1px solid var(--ink-3); font-family: var(--f-data); font-size: 0.78rem; line-height: 1.45; padding: 4px 7px; white-space: nowrap; z-index: 3; }
+
+/* point controls */
+.pt-ctl { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 8px 20px; align-items: end; margin-bottom: 12px; }
+.ctl label, .ctl .label { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.ctl label .num { font-weight: 400; color: var(--ink-2); font-size: 0.88rem; }
+.ticks { position: relative; height: 18px; margin: 0 8px; }
+.ticks span { position: absolute; transform: translateX(-50%); font-size: 0.75rem; color: var(--ink-3); white-space: nowrap; }
+.ticks span.first { transform: none; } .ticks span.last { transform: translateX(-100%); }
+.seg { display: inline-flex; border: 1px solid var(--ink-3); border-radius: var(--radius); overflow: hidden; }
+.seg button { font: inherit; font-size: 0.9rem; padding: 3px 10px; border: 0; background: var(--paper); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+.seg button + button { border-left: 1px solid var(--ink-3); }
+.seg button[aria-checked="true"] { background: var(--band); font-weight: 600; }
+.inp .seg { margin-top: 4px; }
+
+.pt-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 12px; align-items: start; }
+.map-wrap { padding: 6px; }
+#map { cursor: crosshair; }
+.dial-col { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.readout { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; font-size: 0.88rem; }
+.readout dt { color: var(--ink-2); }
+.readout dd { margin: 0; text-align: right; font-family: var(--f-data); font-variant-numeric: tabular-nums; }
+.readout .grp { grid-column: 1 / -1; font-weight: 600; font-size: 0.85rem; margin-top: 6px; border-top: 1px solid var(--rule); padding-top: 4px; }
+.readout .grp:first-child { margin-top: 0; border-top: 0; padding-top: 0; }
+.readout .hl { font-weight: 600; }
+.status { font-size: 0.82rem; }
+.status.fly { color: var(--kite); }
+.status.no { color: var(--ink-3); }
+
+/* derivation */
+.deriv { max-width: 760px; }
+.deriv p, .deriv li { max-width: 72ch; }
+.deriv h3 { font-size: 1.05rem; margin-top: 26px; }
+.deriv h3 .n { font-weight: 600; margin-right: 4px; }
+.deriv h3 .n::after { content: "."; }
+.deriv .lede { color: var(--ink-2); }
+.eq { overflow-x: auto; padding: 2px 0; }
+figure { margin: 14px 0; border: 1px solid var(--rule); padding: 10px 12px; }
+figure svg { max-width: 560px; margin: 0 auto; }
+figcaption { font-size: 0.85rem; color: var(--ink-2); margin-top: 4px; }
+.dg line, .dg path, .dg circle, .dg polygon { vector-effect: non-scaling-stroke; }
+.dg text { font-family: Georgia, "Times New Roman", serif; font-style: italic; font-size: 15px; fill: var(--ink); }
+.dg text.sm { font-size: 12.5px; fill: var(--ink-2); font-style: normal; font-family: var(--f-body); }
+.callout { border-left: 3px solid var(--rule); padding: 2px 0 2px 12px; margin: 12px 0; color: var(--ink-2); }
+#worked { border: 1px solid var(--rule); padding: 4px 14px 10px; overflow-x: auto; }
+#worked .where { font-weight: 600; margin: 8px 0 2px; }
+.cfg { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+.cfg th, .cfg td { text-align: left; padding: 4px 10px 4px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.cfg th { font-weight: 600; }
+.cfg code { font-family: var(--f-data); font-size: 0.84rem; }
+.tbl { overflow-x: auto; }
+ul.tight { padding-left: 1.2em; } ul.tight li { margin: 3px 0; }
+mjx-container[display="true"] { margin: 0.5em 0 !important; }
+mjx-container svg { display: inline-block; }
+.deriv mjx-container[display="true"] { font-size: 96%; }
+
+@media (max-width: 860px) {
+  .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tile:nth-child(3) { border-left: 0; }
+  .tile:nth-child(n+3) { border-top: 1px solid var(--rule); }
+  .charts, .pt-grid, .figs2 { grid-template-columns: minmax(0, 1fr); }
+  .pt-ctl { grid-template-columns: minmax(0, 1fr); }
+  .inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 480px) {
+  .wrap, .areabar-in { padding-inline: 16px; }
+  .tile .v { font-size: 1.3rem; }
+  .area-ctl { flex-wrap: wrap; gap: 4px 10px; }
+  .area-ctl input { order: 3; flex: 1 1 100%; }
+  .ticks span { font-size: 0.7rem; }
+  .inputs { grid-template-columns: minmax(0, 1fr); }
+  .areabar .chips { display: none; }
+}
+</style>
+</head>
+<body>
+
+
+<div class="wrap" style="padding-bottom:0">
+  <h1>Kite Thrust Model V2</h1>
+  <div class="eyebrow">Project Kite, OCEN 407</div>
+  <p class="sub">How much a towing kite pulls the <b>Hanwha MT-50</b> MR tanker on Houston ⇄ Rotterdam, month by month and point by point, using the team's ERA5 monthly winds. Kite area sits in the bar that follows you down the page; the other design inputs are just below it. Lock any slider you don't want bumped. Everything else lives in the code.</p>
+</div>
+
+<div class="areabar">
+  <div class="areabar-in">
+    <div class="area-ctl">
+      <label for="area">Kite area</label>
+      <input id="area" type="range" aria-label="Kite area in square metres">
+      <span class="area-val" id="areaVal">300 m²</span>
+      <button type="button" class="lock" id="areaLock" aria-pressed="false" aria-label="Lock kite area" title="Lock kite area"></button>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<section id="design" style="margin-top:22px">
+  <div class="sec-head">
+    <h2>Design inputs</h2>
+    <p>Defaults are Traut et al. (2014). Locked sliders can't be moved until unlocked.</p>
+  </div>
+  <div class="inputs" id="inputs"></div>
+</section>
+
+<section id="annual">
+  <div class="sec-head">
+    <h2>Average over a year</h2>
+    <p>Both legs, every month, distance-weighted along the route</p>
+  </div>
+  <div class="tiles">
+    <div class="tile lead"><div class="k">Round trip</div><div class="v" id="tRt">–</div><div class="s" id="tRtS">of main-engine power</div></div>
+    <div class="tile"><div class="k"><span class="sw e"></span>Eastbound · laden</div><div class="v" id="tE">–</div><div class="s" id="tES"></div></div>
+    <div class="tile"><div class="k"><span class="sw w"></span>Westbound · ballast</div><div class="v" id="tW">–</div><div class="s" id="tWS"></div></div>
+    <div class="tile"><div class="k">Fuel saved</div><div class="v" id="tF">–</div><div class="s" id="tFS"></div></div>
+  </div>
+  <div class="charts">
+    <div class="panel" id="mPanel">
+      <div class="panel-head"><h3>Saving by month</h3>
+        <div class="legend"><span><i class="sw e"></i>Eastbound</span><span><i class="sw w"></i>Westbound</span></div></div>
+      <svg id="mChart" viewBox="0 0 520 230" role="img" aria-label="Monthly fuel saving by leg, percent of main-engine power"></svg>
+      <p class="note">% of main-engine power. Click a month to look at it on the map below.</p>
+      <div class="tip" id="mTip" hidden></div>
+    </div>
+    <div class="panel" id="aPanel">
+      <div class="panel-head"><h3>Saving vs kite area</h3>
+        <div class="legend"><span><i class="ln"></i>Round trip</span><span><i class="sw e"></i>East</span><span><i class="sw w"></i>West</span></div></div>
+      <svg id="aChart" viewBox="0 0 440 230" role="img" aria-label="Round-trip saving versus kite area"></svg>
+      <p class="note">Shaded band: the team's 6–10% target.</p>
+      <div class="tip" id="aTip" hidden></div>
+    </div>
+  </div>
+</section>
+
+<section id="point">
+  <div class="sec-head">
+    <h2>Anywhere on the route</h2>
+    <p>Pick a month and a spot; the dial shows the wind the kite sees there</p>
+  </div>
+  <div class="pt-ctl">
+    <div class="ctl">
+      <label for="month">Month <span class="num" id="monthVal"></span></label>
+      <input id="month" type="range" min="0" max="11" step="1" value="4">
+    </div>
+    <div class="ctl">
+      <label for="pos">Position <span class="num" id="posVal"></span></label>
+      <input id="pos" type="range" min="0" max="1000" step="1" value="620">
+      <div class="ticks" id="posTicks"></div>
+    </div>
+    <div class="ctl">
+      <span class="label">Leg</span>
+      <div class="seg" role="radiogroup" aria-label="Leg">
+        <button type="button" role="radio" id="legE" aria-checked="true"><i class="sw e"></i>East · laden</button>
+        <button type="button" role="radio" id="legW" aria-checked="false"><i class="sw w"></i>West · ballast</button>
+      </div>
+    </div>
+  </div>
+  <div class="pt-grid">
+    <div class="panel map-wrap">
+      <svg id="map" role="img" aria-label="Route map, Houston to Rotterdam, line width shows expected kite thrust"></svg>
+      <p class="note" id="mapNote" style="padding:0 6px 4px"></p>
+    </div>
+    <div class="dial-col">
+      <div class="panel">
+        <div class="panel-head"><h3>Wind at the kite</h3><span id="flyBadge"></span></div>
+        <svg id="dial" viewBox="0 0 360 360" role="img" aria-label="Velocity triangle and sampled apparent winds"></svg>
+        <div class="legend" style="margin-top:6px">
+          <span><i class="ln" style="border-color:var(--wind)"></i><span id="dialWindLbl">True wind, 148 m</span></span>
+          <span><i class="ln" style="border-color:var(--ink-3);border-top-style:dashed"></i>Ship motion</span>
+          <span><i class="ln" style="border-top-width:3px"></i>Apparent wind</span>
+          <span><i class="ln" style="border-color:var(--kite)"></i>Kite bearing</span>
+        </div>
+        <p class="note">Dots: 512 sampled winds for this month, drawn as apparent wind. Magenta = kite flies, grey = grounded. Hatched sector = apparent wind from within 45° of the bow. Rings every 10 kn, north up.</p>
+      </div>
+      <div class="panel">
+        <dl class="readout" id="readout"></dl>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="model">
+  <div class="sec-head">
+    <h2>How the model works</h2>
+    <p>Built up one piece at a time; the thrust equation lands in step 5</p>
+  </div>
+  <article class="deriv">
+    <p class="note" style="margin-bottom:10px">Numbers quoted in the text below use the default inputs (350 m tether, 25°, L/D 3.5, 1 MN cap). The worked example in step 9 uses whatever the sliders are set to.</p>
+    <p class="lede">The page answers one question: for a kite of area \(A\), how much along-track pull \(T\) does the MT-50 get at a given point and month, and what is that worth over a year? Each step adds one piece of physics. The model is the circle-centre version of Traut et al. (2014), which treats the kite as massless and flying fast loops across the wind.</p>
+
+    <h3><span class="n">1</span>Wind at kite height</h3>
+    <p>ERA5 reports wind 10 m above the sea. The kite flies at the end of an \(L = 350\) m tether at elevation \(\varepsilon = 25^\circ\), so it sits at</p>
+    <div class="eq">\[ h = L\sin\varepsilon = 350\,\sin 25^\circ \approx 148\ \text{m}. \]</div>
+    <p>Wind over open water strengthens with height. A power-law profile is the standard engineering fit:</p>
+    <div class="eq">\[ V(h) = V_{10}\left(\frac{h}{10\ \text{m}}\right)^{\alpha}, \qquad \alpha = 0.11 \text{ offshore}. \]</div>
+    <p>Here \((148/10)^{0.11} \approx 1.345\). The kite sees about 35% more wind than the spreadsheet shows, and because force scales with speed squared, that is roughly 80% more force.</p>
+    <figure>
+      <svg class="dg" viewBox="0 0 560 230" aria-label="Side view: tether at elevation epsilon, wind profile growing with height">
+        <line x1="20" y1="196" x2="540" y2="196" stroke="var(--ink-3)" stroke-width="1"/>
+        <path d="M40 196 L130 196 L122 182 L48 182 Z" fill="var(--land)" stroke="var(--land-edge)"/>
+        <rect x="56" y="172" width="16" height="10" fill="var(--land)" stroke="var(--land-edge)"/>
+        <line x1="128" y1="184" x2="445" y2="36" stroke="var(--kite)" stroke-width="2"/>
+        <path d="M445 36 l14 -6 l4 12 l-14 4 z" fill="var(--kite)"/>
+        <path d="M188 184 A60 60 0 0 0 183 158" fill="none" stroke="var(--ink-2)"/>
+        <text x="194" y="176">ε</text>
+        <line x1="445" y1="36" x2="445" y2="196" stroke="var(--ink-3)" stroke-dasharray="4 4"/>
+        <text x="438" y="122" text-anchor="end">h = L sin ε</text>
+        <text x="270" y="98" transform="rotate(-25 270 98)">L = 350 m</text>
+        <g stroke="var(--wind)" stroke-width="1.6">
+          <line x1="500" y1="190" x2="514" y2="190"/><line x1="500" y1="160" x2="527" y2="160"/>
+          <line x1="500" y1="120" x2="532" y2="120"/><line x1="500" y1="80" x2="535" y2="80"/>
+          <line x1="500" y1="40" x2="537" y2="40"/>
+        </g>
+        <g fill="var(--wind)"><polygon points="518,190 512,187 512,193"/><polygon points="531,160 525,157 525,163"/><polygon points="536,120 530,117 530,123"/><polygon points="539,80 533,77 533,83"/><polygon points="541,40 535,37 535,43"/></g>
+        <path d="M500 196 C512 190 526 165 532 120 S537 50 538 30" fill="none" stroke="var(--wind)" stroke-dasharray="2 3"/>
+        <text class="sm" x="486" y="220">V(h)</text>
+        <text class="sm" x="40" y="220">MT-50, bow tow point</text>
+      </svg>
+      <figcaption>Side view. The tether leaves the bow at elevation ε; the wind profile on the right grows with height, so the kite works in faster air than the 10 m data.</figcaption>
+    </figure>
+
+    <h3><span class="n">2</span>Apparent wind on a moving ship</h3>
+    <p>Treat wind as a velocity vector: the direction the air moves toward. The ship moves at \(V_s = 14.5\) kn \(= 7.46\) m/s on heading \(\psi\). Relative to the ship, the air moves at</p>
+    <div class="eq">\[ \vec V_a = \vec V_w(h) - \vec V_s, \qquad V_{a,E} = u - V_s\sin\psi, \quad V_{a,N} = v - V_s\cos\psi, \]</div>
+    <p>where \(u, v\) are the east and north components of the true wind at kite height. Call \(\delta\) the angle between the direction the apparent wind blows toward and the ship's heading: \(\delta = 0\) is a dead tailwind, \(90^\circ\) a beam wind, \(180^\circ\) a head wind. In a dead tailwind the ship runs away from its own wind, \(V_a = V_w - V_s\), so a 15 kn tailwind at kite height leaves the kite only 0.5 kn. A beam wind keeps all of \(V_w\) and adds the ship's own headwind on top.</p>
+    <figure>
+      <svg class="dg" viewBox="0 0 560 250" aria-label="Velocity triangle: true wind plus ship-motion wind gives apparent wind">
+        <g transform="translate(110 200)">
+          <path d="M0 -70 C9 -55 11 -40 11 -6 L11 30 L-11 30 L-11 -6 C-11 -40 -9 -55 0 -70 Z" fill="var(--land)" stroke="var(--land-edge)"/>
+          <line x1="0" y1="-78" x2="0" y2="-170" stroke="var(--ink-3)" stroke-dasharray="4 4"/>
+          <text class="sm" x="6" y="-158">heading ψ</text>
+        </g>
+        <g transform="translate(250 190)">
+          <line x1="0" y1="0" x2="230" y2="-120" stroke="var(--wind)" stroke-width="2.2"/>
+          <polygon points="230,-120 220.8,-109.6 216.2,-118.4" fill="var(--wind)"/>
+          <line x1="230" y1="-120" x2="230" y2="-24" stroke="var(--ink-3)" stroke-width="2" stroke-dasharray="6 4"/>
+          <polygon points="230,-12 225,-24 235,-24" fill="var(--ink-3)"/>
+          <line x1="0" y1="0" x2="216" y2="-9.4" stroke="var(--ink)" stroke-width="3"/>
+          <polygon points="229,-10 216,-3.4 215.5,-15.4" fill="var(--ink)"/>
+          <line x1="0" y1="0" x2="0" y2="-150" stroke="var(--ink-3)" stroke-dasharray="4 4"/>
+          <path d="M0 -60 A60 60 0 0 1 60 -2" fill="none" stroke="var(--kite)" stroke-width="1.6"/>
+          <text x="40" y="-52" style="fill:var(--kite)">δ</text>
+          <text x="100" y="-92">V<tspan baseline-shift="sub" font-size="11">w</tspan>(h)</text>
+          <text x="240" y="-60">−V<tspan baseline-shift="sub" font-size="11">s</tspan></text>
+          <text x="100" y="22">V<tspan baseline-shift="sub" font-size="11">a</tspan></text>
+          <text class="sm" x="-4" y="-156">heading</text>
+        </g>
+      </svg>
+      <figcaption>Velocity triangle, ship heading up. True wind at kite height plus the ship's own headwind (−V<sub>s</sub>) gives the apparent wind V<sub>a</sub>. δ is measured from the heading to the direction V<sub>a</sub> blows toward.</figcaption>
+    </figure>
+
+    <h3><span class="n">3</span>Where the kite sits</h3>
+    <p>The kite flies downwind of the ship in the apparent wind. In plan view its bearing is swung from the apparent downwind direction toward the heading by an azimuth angle \(\varphi\). With axes \(x\) = apparent downwind, \(y\) = crosswind, \(z\) = up, the unit vector along the tether is</p>
+    <div class="eq">\[ \hat r = (\cos\varepsilon\cos\varphi,\ \cos\varepsilon\sin\varphi,\ \sin\varepsilon). \]</div>
+    <p>The apparent wind is horizontal along \(x\), so the part of it that points along the tether is</p>
+    <div class="eq">\[ V_r = \vec V_a\cdot\hat r = V_a\cos\varepsilon\cos\varphi. \]</div>
+    <p>Step 4 shows why \(V_r\) is the only part of the wind that loads the tether.</p>
+    <figure>
+      <svg class="dg" viewBox="0 0 560 260" aria-label="Plan view: heading, apparent downwind direction at delta, kite at phi from downwind toward heading">
+        <g transform="translate(150 215)">
+          <path d="M0 -50 C7 -40 8 -28 8 -4 L8 22 L-8 22 L-8 -4 C-8 -28 -7 -40 0 -50 Z" fill="var(--land)" stroke="var(--land-edge)"/>
+          <line x1="0" y1="-50" x2="0" y2="-200" stroke="var(--ink-3)" stroke-dasharray="4 4"/>
+          <text class="sm" x="-26" y="-205">heading</text>
+          <!-- downwind at delta = 70 deg from heading -->
+          <line x1="0" y1="-50" x2="300" y2="-159" stroke="var(--ink)" stroke-width="2"/>
+          <polygon points="306,-161 292,-163 297,-152" fill="var(--ink)"/>
+          <text x="312" y="-160">V<tspan baseline-shift="sub" font-size="11">a</tspan> (downwind)</text>
+          <!-- kite at phi = 35 deg from downwind toward heading, i.e. 35 deg from heading -->
+          <line x1="0" y1="-50" x2="126" y2="-230" stroke="var(--kite)" stroke-width="2"/>
+          <path d="M126 -230 l12 -2 l-2 12 z" fill="var(--kite)"/>
+          <text class="sm" x="134" y="-226" style="fill:var(--kite)">kite (plan)</text>
+          <path d="M0 -120 A70 70 0 0 1 66 -74" fill="none" stroke="var(--ink-2)"/>
+          <text x="10" y="-128">δ</text>
+          <path d="M57 -132 A100 100 0 0 1 94 -84" fill="none" stroke="var(--kite)"/>
+          <text x="96" y="-118" style="fill:var(--kite)">φ</text>
+          <!-- along-track component -->
+          <line x1="-30" y1="-50" x2="-30" y2="-150" stroke="var(--kite)" stroke-width="3"/>
+          <polygon points="-30,-158 -36,-146 -24,-146" fill="var(--kite)"/>
+          <text x="-128" y="-110">T (along track)</text>
+          <text x="40" y="-176" style="fill:var(--ink-2)">δ − φ</text>
+        </g>
+      </svg>
+      <figcaption>Plan view. The apparent wind blows toward δ off the heading; the kite sits φ back toward the heading from that line. The tether's horizontal pull makes angle δ − φ with the heading, and its projection on the heading is the useful thrust T.</figcaption>
+    </figure>
+
+    <h3><span class="n">4</span>Why a crosswind kite pulls so hard</h3>
+    <p>The kite flies fast loops across the wind with the tether length held fixed. Following Loyd (1980), treat it as massless and quasi-steady. With a fixed tether there is no radial motion, so the radial part of the air velocity at the kite stays \(V_r\). The kite's own crosswind speed \(v_k\) adds a component perpendicular to the tether, so the airspeed over the canopy is</p>
+    <div class="eq">\[ V_k^2 = V_r^2 + v_k^2. \]</div>
+    <p>A massless kite carries no net force except the tether, so the aerodynamic resultant (lift \(L\) perpendicular to \(V_k\), drag \(D\) along it) must point straight along the tether. In the figure, the angle between \(V_k\) and the tether equals the angle between \(D\) and the resultant, which gives</p>
+    <div class="eq">\[ \tan\theta = \frac{v_k}{V_r} = \frac{L}{D} = \frac{C_L}{C_D}. \]</div>
+    <p>The kite accelerates until its crosswind speed is \(L/D\) times the radial wind. Substituting:</p>
+    <div class="eq">\[ V_k^2 = V_r^2\left(1 + \frac{C_L^2}{C_D^2}\right). \]</div>
+    <p>The tether force equals the aerodynamic resultant:</p>
+    <div class="eq">\[ F = \tfrac12\rho A\sqrt{C_L^2 + C_D^2}\;V_k^2 = \underbrace{\tfrac12\rho A\sqrt{C_L^2+C_D^2}\left(1+\frac{C_L^2}{C_D^2}\right)}_{K}\;V_r^2 . \]</div>
+    <p>With Traut's kite (\(C_L = 1.0\), \(C_D = 0.286\), so \(L/D = 3.5\)) and \(\rho = 1.2\) kg/m³, the bracket \(1 + 3.5^2 = 13.2\). A kite flying loops pulls about 13 times harder than the same canopy parked in the same wind. \(K = 8.25\ \text{N/(m/s)}^2\) per m² of canopy, or 4,127 for a 500 m² kite.</p>
+    <figure>
+      <svg class="dg" viewBox="0 0 560 270" aria-label="Kite force balance: lift and drag sum to a resultant along the tether">
+        <g transform="translate(250 135)">
+          <line x1="-230" y1="0" x2="0" y2="0" stroke="var(--kite)" stroke-width="2"/>
+          <text class="sm" x="-228" y="-8">tether, to ship</text>
+          <circle r="5" fill="var(--kite)"/>
+          <!-- r-hat to the right; V_r along +x (length 40), -v_k along -y (length 140) => V_k angle theta=74deg -->
+          <line x1="0" y1="0" x2="30" y2="0" stroke="var(--wind)" stroke-width="2"/>
+          <polygon points="38,0 28,-5 28,5" fill="var(--wind)"/>
+          <text x="14" y="-10">V<tspan baseline-shift="sub" font-size="11">r</tspan></text>
+          <line x1="38" y1="0" x2="38" y2="123" stroke="var(--ink-3)" stroke-width="2" stroke-dasharray="6 4"/>
+          <polygon points="38,133 33,121 43,121" fill="var(--ink-3)"/>
+          <text x="46" y="80">−v<tspan baseline-shift="sub" font-size="11">k</tspan></text>
+          <line x1="0" y1="0" x2="35.2" y2="123.4" stroke="var(--ink)" stroke-width="2.6"/>
+          <polygon points="38,133 30.4,122.7 40,120" fill="var(--ink)"/>
+          <text x="-16" y="112">V<tspan baseline-shift="sub" font-size="11">k</tspan></text>
+          <path d="M28 0 A28 28 0 0 1 7.7 26.9" fill="none" stroke="var(--ink-2)"/>
+          <text x="16" y="36" style="font-size:13px">θ</text>
+          <line x1="0" y1="0" x2="6" y2="21.2" stroke="var(--ink-2)" stroke-width="2"/>
+          <polygon points="8.2,28.9 1.9,20.4 10.5,18" fill="var(--ink-2)"/>
+          <text class="sm" x="-10" y="44">D</text>
+          <line x1="0" y1="0" x2="93.3" y2="-26.7" stroke="var(--ink-2)" stroke-width="2"/>
+          <polygon points="101,-28.9 90.8,-35.3 93.3,-26.7 95.7,-18" fill="var(--ink-2)"/>
+          <text class="sm" x="100" y="-36">L</text>
+          <line x1="101" y1="-28.9" x2="109.2" y2="0" stroke="var(--ink-3)" stroke-dasharray="3 3"/>
+          <line x1="8.2" y1="28.9" x2="109.2" y2="0" stroke="var(--ink-3)" stroke-dasharray="3 3"/>
+          <line x1="0" y1="0" x2="98" y2="0" stroke="var(--kite)" stroke-width="3.2"/>
+          <polygon points="109.2,0 96,-6 96,6" fill="var(--kite)"/>
+          <text x="120" y="5" style="fill:var(--kite)">F = L + D</text>
+          <text class="sm" x="150" y="-90">crosswind motion</text>
+          <line x1="190" y1="-80" x2="190" y2="-118" stroke="var(--ink-3)"/>
+          <polygon points="190,-124 185,-113 195,-113" fill="var(--ink-3)"/>
+        </g>
+      </svg>
+      <figcaption>Force balance on the kite, viewed in the plane of tether and motion. The radial wind V<sub>r</sub> and the kite's own motion combine into V<sub>k</sub>. Drag runs along V<sub>k</sub>, lift across it, and for a massless kite their sum points exactly along the tether. That forces tan θ = L/D.</figcaption>
+    </figure>
+
+    <h3><span class="n">5</span>From tether force to thrust</h3>
+    <p>The tether pulls the bow along \(\hat r\). Its horizontal part is \(F\cos\varepsilon\), and that makes angle \(\delta - \varphi\) with the heading (plan view above). Using \(V_r\) from step 3:</p>
+    <div class="eq">\[ T = F\cos\varepsilon\cos(\delta-\varphi) = K\,V_a^2\cos^3\varepsilon\,\cos^2\varphi\,\cos(\delta-\varphi). \]</div>
+    <p>The azimuth is a trade. At \(\varphi = 0\) the kite sits dead downwind and pulls hardest, but at a beam reach all of that pull is sideways. At \(\varphi = \delta\) the kite sits dead ahead and every newton points along track, but the radial wind shrinks. The model uses the halfway rule \(\varphi = \delta/2\), as Traut does, which gives the one-line result</p>
+    <div class="eq">\[ \boxed{\,T = K\,V_a^2\,\cos^3\varepsilon\,\cos^3\!\left(\frac{\delta}{2}\right)\,} \]</div>
+    <p>Setting \(\partial T/\partial\varphi = 0\) gives the exact optimum, \(\tan(\delta - \varphi) = 2\tan\varphi\). It is about 9% better at a beam reach, more with the wind further forward, and identical in a tailwind. Set <code class="mono">AZIMUTH_RULE: "optimal"</code> in the code to use it. The sideways part of the pull, \(F\cos\varepsilon\sin(\delta-\varphi)\), is what the hull and rudder have to resist.</p>
+
+    <h3><span class="n">6</span>When the kite can't fly</h3>
+    <ul class="tight">
+      <li><b>Wind too far forward.</b> If \(\delta > 135^\circ\) the apparent wind comes from within 45° of the bow, the kite can't hold station downwind of the ship, and \(T = 0\).</li>
+      <li><b>Too little wind.</b> Below \(V_a = 3\) m/s at the kite it stays packed.</li>
+      <li><b>Tether limit.</b> \(F\) is capped at 1 MN. The default is to depower (reduce angle of attack and hold \(F\) at the cap). Traut lands the kite instead whenever \(F\) would exceed the cap; switch between the two in the Tether limit box at the top. With landing, a bigger kite can do worse because it hits the cap in exactly the windy hours that pay the most.</li>
+    </ul>
+
+    <h3><span class="n">7</span>A month of wind isn't one number</h3>
+    <p>For each waypoint and month the sheet gives the scalar mean speed \(S\) (the average of hourly speeds) and the vector mean \((U, V)\). Their ratio, the steadiness, is about 40% on this route: the direction swings a lot within a month. Because \(T\) grows with \(V_a^2\) and switches off in the no-fly sector, plugging one monthly mean into the thrust equation underpredicts badly and misses the hours when the kite does fly.</p>
+    <p>The model treats each hour's 10 m wind as the monthly mean vector plus a random 2-D Gaussian kick with equal spread \(\sigma\) on both axes:</p>
+    <div class="eq">\[ (u, v) \sim \mathcal N\!\big((U, V),\ \sigma^2 I\big), \]</div>
+    <p>so the speed follows a Rice distribution. \(\sigma\) is the one value that makes the mean speed match the sheet,</p>
+    <div class="eq">\[ \mathbb E\!\left[\sqrt{u^2 + v^2}\,\right] = S, \]</div>
+    <p>solved numerically for every waypoint and month. The expected thrust is the average of \(T\) over 512 fixed sample points (a Halton sequence pushed through Box–Muller). Those 512 points are the dots on the dial.</p>
+
+    <h3><span class="n">8</span>Along the route, over a year</h3>
+    <p>The route is great-circle legs between the six waypoints, 4,836 nm in total. Between waypoints \(U\), \(V\) and \(\sigma\) are interpolated linearly with distance, and the heading at each point is the great-circle course (westbound adds 180°). The annual mean thrust for each leg averages 120 equally spaced points times 12 months, so every mile counts equally. Then</p>
+    <div class="eq">\[ P = \frac{T\,V_s}{\eta_D}, \qquad \text{saving} = \frac{P}{6{,}970\ \text{kW}}, \]</div>
+    <p>where 6,970 kW is 85% MCR, the MT-50's power at 14.5 kn. The default \(\eta_D = 1\) is conservative: it ignores the propeller's efficiency, which roughly offsets the drift and rudder drag the model leaves out. Setting <code class="mono">ETA_D: 0.7</code> credits the propeller and raises every saving by about 40%. Fuel saved per year:</p>
+    <div class="eq">\[ m_\text{fuel} = \bar P_\text{rt}\; t_\text{sail}\;\text{SFOC}, \qquad t_\text{sail} = 2\cdot\frac{4836\ \text{nm}}{14.5\ \text{kn}}\cdot 10\ \text{trips} \approx 6{,}670\ \text{h}. \]</div>
+
+    <h3><span class="n">9</span>The numbers at your selected point</h3>
+    <p>This follows steps 1–6 for the typical condition at the point and month picked above: the monthly mean speed blowing from the dominant direction. It updates with the sliders.</p>
+    <div id="worked"></div>
+
+    <h3><span class="n">10</span>What it leaves out</h3>
+    <ul class="tight">
+      <li>Tether weight, sag and air drag. Without them a longer tether only adds altitude and never costs anything, so the tether-length slider overstates the gain from a longer line.</li>
+      <li>Kite mass and gravity, and the 10° flight circle (the model evaluates its centre; Traut's step-by-step version is within about 4%).</li>
+      <li>Gusts and dynamic peak loads. Size the tether from peaks, not these means.</li>
+      <li>Leeway, rudder drag and wave-induced ship motion.</li>
+      <li>Real hour-to-hour wind. The Gaussian scatter is an assumption, and it is the biggest uncertainty here: V1's hour-by-hour simulation came in lower than this. Rerun with hourly ERA5 at 100 m before putting numbers in the report.</li>
+      <li>Launch and recovery time, port time and speed changes (the ship always makes 14.5 kn).</li>
+    </ul>
+
+    <h3><span class="n">11</span>Changing everything else</h3>
+    <p>Every fixed value sits in one <code class="mono">CONFIG</code> block at the top of the script; edit it in the HTML file and reload. The values marked <b>slider</b> are only start values. The <code class="mono">SLIDERS</code> block right below <code class="mono">CONFIG</code> sets each slider's range and whether it starts locked.</p>
+    <div class="tbl"><table class="cfg" id="cfgTable"><thead><tr><th>Key</th><th>Value</th><th>Meaning</th></tr></thead><tbody></tbody></table></div>
+    <p class="note" style="margin-top:14px">References: Traut et al., Applied Energy 113 (2014) 362–372 · Loyd, J. Energy 4 (1980) · ERA5 via Open-Meteo, team sheet "Route1 Houston to Rotterdam".</p>
+  </article>
+</section>
+</div>
+
+<script>
+window.MathJax = {
+  tex: { inlineMath: [["\\(", "\\)"]], displayMath: [["\\[", "\\]"]] },
+  svg: { fontCache: "global", matchFontHeight: false },
+  startup: { typeset: true }
+};
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.js"></script>
+
+<script>
+// =====================================================================
+//  CONFIG: every fixed parameter of the model. Edit here and reload.
+// =====================================================================
+const CONFIG = {
+  // Air and kite (Traut et al. 2014 kite)
+  RHO: 1.2,                  // air density at kite height [kg/m^3]
+  CL: 1.0,                   // lift coefficient
+  CD: 0.286,                 // drag coefficient (CL/CD = 3.5)
+  TETHER_LENGTH_M: 350,      // tether length [m]
+  ELEVATION_DEG: 25,         // tether elevation above horizon [deg]
+
+  // Operating limits
+  MAX_TETHER_FORCE_N: 1.0e6, // tether force cap [N]
+  STRONG_WIND_RULE: "depower", // "depower" = hold F at the cap, "land" = T = 0 above the cap
+  MAX_DELTA_DEG: 135,        // kite can't fly if apparent wind is within (180 - this) deg of the bow
+  MIN_APPARENT_WIND_MS: 3,   // kite stays packed below this apparent wind at kite height [m/s]
+  AZIMUTH_RULE: "half",      // "half" = phi = delta/2 (Traut), "optimal" = solve tan(delta-phi) = 2 tan(phi)
+
+  // Wind
+  SHEAR_ALPHA: 0.11,         // power-law shear exponent, 10 m -> kite height
+  WIND_MODEL: "scatter",     // "scatter" = Rice distribution around monthly means, "mean" = mean speed only
+  SAMPLES: 512,              // wind samples per month and point (scatter model)
+  ROUTE_SAMPLES: 120,        // points along the route for the annual average
+
+  // Ship: Hanwha MT-50, MAN 6S50ME-B9.2
+  SHIP_SPEED_KN: 14.5,       // service speed [kn]
+  ME_POWER_KW: 6970,         // main-engine power at that speed, 85% MCR [kW]
+  ETA_D: 1.0,                // propulsive efficiency credit (1.0 conservative, 0.7 typical)
+  SFOC_G_PER_KWH: 180,       // specific fuel oil consumption [g/kWh]
+  ROUND_TRIPS_PER_YEAR: 10,
+  CO2_PER_T_FUEL: 3.114,     // t CO2 per t HFO
+
+  // Starting kite area [m^2]
+  AREA_M2: 300
+};
+
+// =====================================================================
+//  SLIDERS: which CONFIG values get a slider, their ranges, and whether
+//  they start locked. Start values come from CONFIG above.
+// =====================================================================
+const SLIDERS = {
+  AREA_M2:            { min: 100, max: 1500, step: 10,   locked: false },
+  TETHER_LENGTH_M:    { min: 100, max: 800,  step: 10,   locked: false },
+  ELEVATION_DEG:      { min: 15,  max: 45,   step: 1,    locked: false },
+  LIFT_TO_DRAG:       { min: 2,   max: 8,    step: 0.1,  locked: false },  // sets CD = CL / (L/D)
+  MAX_TETHER_FORCE_KN:{ min: 200, max: 2000, step: 50,   locked: false }
+};
+
+// =====================================================================
+//  DATA: ERA5 monthly means at 10 m, Sep 2025 - Aug 2026
+//  (team sheet "Route1 Houston to Rotterdam", Monthly Wind Data tab)
+//  Each month: [scalar mean speed kn, U kn toward east, V kn toward north]
+// =====================================================================
+const MONTHS = ["Sep 2025","Oct 2025","Nov 2025","Dec 2025","Jan 2026","Feb 2026","Mar 2026","Apr 2026","May 2026","Jun 2026","Jul 2026","Aug 2026"];
+const WAYPOINTS = [
+  { name: "Houston/Galveston approach (US Gulf Coast)", short: "Houston", lat: 29.3, lon: -94.8, months: [
+      [8.36, -3.964, 0.879],  // Sep 2025
+      [10.21, -4.440, -0.847],  // Oct 2025
+      [11.32, -3.358, 2.042],  // Nov 2025
+      [10.61, -2.251, -1.797],  // Dec 2025
+      [11.69, 0.422, -1.935],  // Jan 2026
+      [10.52, -0.550, 3.122],  // Feb 2026
+      [11.31, -3.601, 5.339],  // Mar 2026
+      [13.86, -8.047, 6.219],  // Apr 2026
+      [11.39, -4.500, 2.801],  // May 2026
+      [12.79, -4.154, 10.078],  // Jun 2026
+      [9.67, 0.918, 7.071],  // Jul 2026
+      [9.75, 1.578, 7.363]   // Aug 2026
+  ] },
+  { name: "Florida Straits (Gulf exit)", short: "Florida Str.", lat: 24.5, lon: -81.0, months: [
+      [8.09, 1.089, -0.927],  // Sep 2025
+      [10.81, -6.383, -3.437],  // Oct 2025
+      [11.85, -7.868, -4.308],  // Nov 2025
+      [11.11, -4.844, -3.455],  // Dec 2025
+      [11.30, -3.166, -4.263],  // Jan 2026
+      [11.46, -1.759, -1.860],  // Feb 2026
+      [12.38, -9.053, -2.257],  // Mar 2026
+      [12.02, -10.094, -1.725],  // Apr 2026
+      [9.47, -4.991, 3.844],  // May 2026
+      [8.04, -5.647, 2.385],  // Jun 2026
+      [8.85, -4.696, 3.387],  // Jul 2026
+      [7.88, -5.404, 2.417]   // Aug 2026
+  ] },
+  { name: "Mid-Atlantic 1", short: "Mid-Atl 1", lat: 36.44, lon: -67.16, months: [
+      [12.16, -1.713, 3.392],  // Sep 2025
+      [17.26, -1.464, -5.104],  // Oct 2025
+      [19.66, 12.400, 0.108],  // Nov 2025
+      [21.74, 11.099, -2.420],  // Dec 2025
+      [20.00, 12.447, 1.352],  // Jan 2026
+      [22.87, 11.682, -4.160],  // Feb 2026
+      [17.60, 4.248, 2.278],  // Mar 2026
+      [16.35, 5.100, -1.065],  // Apr 2026
+      [14.92, 6.228, 2.852],  // May 2026
+      [14.53, 6.076, 4.713],  // Jun 2026
+      [13.47, 7.730, 5.975],  // Jul 2026
+      [12.10, 7.460, 5.520]   // Aug 2026
+  ] },
+  { name: "Mid-Atlantic 2 (Grand Banks latitude)", short: "Mid-Atl 2", lat: 46.24, lon: -48.83, months: [
+      [13.68, 6.439, 1.701],  // Sep 2025
+      [16.41, 1.199, -6.531],  // Oct 2025
+      [19.24, 7.845, 5.637],  // Nov 2025
+      [23.12, 10.839, 5.836],  // Dec 2025
+      [24.43, 16.252, 6.832],  // Jan 2026
+      [20.71, 6.389, -1.808],  // Feb 2026
+      [21.14, 10.264, 5.006],  // Mar 2026
+      [16.41, 3.140, -1.224],  // Apr 2026
+      [16.62, 3.334, 3.369],  // May 2026
+      [12.99, 2.605, 1.717],  // Jun 2026
+      [12.71, 3.604, 6.895],  // Jul 2026
+      [11.14, 1.056, 2.021]   // Aug 2026
+  ] },
+  { name: "Mid-Atlantic 3", short: "Mid-Atl 3", lat: 52.06, lon: -24.51, months: [
+      [20.72, 13.233, 1.111],  // Sep 2025
+      [20.01, 5.000, 0.712],  // Oct 2025
+      [21.51, 7.094, 0.808],  // Nov 2025
+      [25.27, 13.618, 4.163],  // Dec 2025
+      [20.57, 10.073, -0.864],  // Jan 2026
+      [20.69, 8.182, 0.976],  // Feb 2026
+      [23.14, 17.024, 5.466],  // Mar 2026
+      [20.91, 5.049, 3.167],  // Apr 2026
+      [15.20, 4.039, 1.037],  // May 2026
+      [17.23, 10.903, 4.076],  // Jun 2026
+      [11.45, 2.856, 2.886],  // Jul 2026
+      [15.47, 5.403, -0.274]   // Aug 2026
+  ] },
+  { name: "Rotterdam / NW Europe approach", short: "Rotterdam", lat: 51.95, lon: 3.0, months: [
+      [17.20, 4.829, 6.049],  // Sep 2025
+      [17.11, 7.999, 1.979],  // Oct 2025
+      [17.71, 5.014, 5.975],  // Nov 2025
+      [18.49, -0.248, 7.876],  // Dec 2025
+      [16.77, 0.590, 5.025],  // Jan 2026
+      [16.99, 0.317, 6.472],  // Feb 2026
+      [14.46, 4.237, 2.234],  // Mar 2026
+      [13.22, -1.394, 0.677],  // Apr 2026
+      [11.96, 0.128, -0.442],  // May 2026
+      [13.24, 5.237, 4.765],  // Jun 2026
+      [11.63, 1.495, -4.021],  // Jul 2026
+      [11.94, 0.445, 0.388]   // Aug 2026
+  ] }
+];
+
+// =====================================================================
+//  MODEL
+// =====================================================================
+const D2R = Math.PI / 180, KN = 0.514444;
+// live parameters: a copy of CONFIG that the sliders write into
+const PAR = { ...CONFIG };
+const VS = CONFIG.SHIP_SPEED_KN * KN;
+const DELTA_MAX = CONFIG.MAX_DELTA_DEG * D2R;
+let EPS, COS_E, H_KITE, SHEAR, K_PER_M2, FMAX, LAND_RULE;
+function derive() {
+  EPS = PAR.ELEVATION_DEG * D2R;
+  COS_E = Math.cos(EPS);
+  H_KITE = PAR.TETHER_LENGTH_M * Math.sin(EPS);
+  SHEAR = Math.pow(H_KITE / 10, PAR.SHEAR_ALPHA);
+  K_PER_M2 = 0.5 * PAR.RHO * Math.hypot(PAR.CL, PAR.CD) * (1 + (PAR.CL / PAR.CD) ** 2);
+  FMAX = PAR.MAX_TETHER_FORCE_N;
+  LAND_RULE = PAR.STRONG_WIND_RULE === "land";
+}
+derive();
+
+// fixed standard-normal sample set: Halton (2,3) -> Box-Muller, then exact zero mean / unit variance
+function halton(i, b) { let f = 1, r = 0; while (i > 0) { f /= b; r += f * (i % b); i = Math.floor(i / b); } return r; }
+function normalSamples(n) {
+  const zx = new Float64Array(n), zy = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const u1 = halton(i + 1, 2), u2 = halton(i + 1, 3);
+    const r = Math.sqrt(-2 * Math.log(u1)), t = 2 * Math.PI * u2;
+    zx[i] = r * Math.cos(t); zy[i] = r * Math.sin(t);
+  }
+  for (const z of [zx, zy]) {
+    let m = 0; for (const v of z) m += v; m /= n;
+    let s = 0; for (let i = 0; i < n; i++) { z[i] -= m; s += z[i] * z[i]; }
+    s = Math.sqrt(s / n); for (let i = 0; i < n; i++) z[i] /= s;
+  }
+  return { zx, zy, n };
+}
+const SCATTER = CONFIG.WIND_MODEL !== "mean";
+const Z = SCATTER ? normalSamples(CONFIG.SAMPLES) : { zx: new Float64Array([0]), zy: new Float64Array([0]), n: 1 };
+
+// sigma so that mean speed of N((U,V), sigma^2 I) equals the scalar mean S
+function solveSigma(U, V, S) {
+  let lo = 1e-6, hi = Math.max(S, 1e-3) * 2;
+  for (let it = 0; it < 60; it++) {
+    const s = 0.5 * (lo + hi); let m = 0;
+    for (let j = 0; j < Z.n; j++) m += Math.hypot(U + s * Z.zx[j], V + s * Z.zy[j]);
+    if (m / Z.n < S) lo = s; else hi = s;
+  }
+  return 0.5 * (lo + hi);
+}
+const SIG = WAYPOINTS.map(w => w.months.map(([S, U, V]) => SCATTER ? solveSigma(U * KN, V * KN, S * KN) : 0));
+
+// great-circle helpers (degrees in, radians for bearing)
+function bearing(la1, lo1, la2, lo2) {
+  const p1 = la1 * D2R, p2 = la2 * D2R, dl = (lo2 - lo1) * D2R;
+  return Math.atan2(Math.sin(dl) * Math.cos(p2), Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl));
+}
+function gcDist(la1, lo1, la2, lo2) {
+  const p1 = la1 * D2R, p2 = la2 * D2R, dl = (lo2 - lo1) * D2R;
+  const a = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return 2 * 3440.065 * Math.asin(Math.sqrt(a));
+}
+function gcPoint(la1, lo1, la2, lo2, f) {
+  const p1 = la1 * D2R, l1 = lo1 * D2R, p2 = la2 * D2R, l2 = lo2 * D2R;
+  const d = 2 * Math.asin(Math.sqrt(Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin((l2 - l1) / 2) ** 2));
+  if (d === 0) return [la1, lo1];
+  const a = Math.sin((1 - f) * d) / Math.sin(d), b = Math.sin(f * d) / Math.sin(d);
+  const x = a * Math.cos(p1) * Math.cos(l1) + b * Math.cos(p2) * Math.cos(l2);
+  const y = a * Math.cos(p1) * Math.sin(l1) + b * Math.cos(p2) * Math.sin(l2);
+  const z = a * Math.sin(p1) + b * Math.sin(p2);
+  return [Math.atan2(z, Math.hypot(x, y)) / D2R, Math.atan2(y, x) / D2R];
+}
+const NSEG = WAYPOINTS.length - 1;
+const SEG_NM = [], CUM = [0];
+for (let i = 0; i < NSEG; i++) {
+  const a = WAYPOINTS[i], b = WAYPOINTS[i + 1];
+  SEG_NM.push(gcDist(a.lat, a.lon, b.lat, b.lon)); CUM.push(CUM[i] + SEG_NM[i]);
+}
+const ROUTE_NM = CUM[NSEG];
+
+function routeAt(s) {
+  s = Math.min(Math.max(s, 0), ROUTE_NM);
+  let i = 0; while (i < NSEG - 1 && CUM[i + 1] <= s) i++;
+  const f = (s - CUM[i]) / SEG_NM[i], a = WAYPOINTS[i], b = WAYPOINTS[i + 1];
+  const [lat, lon] = gcPoint(a.lat, a.lon, b.lat, b.lon, f);
+  let hdg;
+  if (f < 0.999) hdg = bearing(lat, lon, b.lat, b.lon);
+  else { const q = gcPoint(a.lat, a.lon, b.lat, b.lon, 0.998); hdg = bearing(q[0], q[1], lat, lon); }
+  return { seg: i, f, lat, lon, hdg };
+}
+
+// monthly mean wind at a route point, m/s at 10 m
+function windAt(seg, f, m) {
+  const a = WAYPOINTS[seg].months[m], b = WAYPOINTS[seg + 1].months[m];
+  const L = (x, y) => (1 - f) * x + f * y;
+  const S = L(a[0], b[0]) * KN, U = L(a[1], b[1]) * KN, V = L(a[2], b[2]) * KN;
+  const sigma = L(SIG[seg][m], SIG[seg + 1][m]);
+  return { S, U, V, sigma };
+}
+// centre of the sample cloud: the vector mean (scatter model) or mean speed along the mean direction (mean model)
+function windBase(w) {
+  if (SCATTER) return [w.U, w.V, w.sigma];
+  const k = w.S / Math.max(Math.hypot(w.U, w.V), 1e-9);
+  return [w.U * k, w.V * k, 0];
+}
+
+// kite azimuth from apparent downwind toward the heading
+function azimuth(delta) {
+  if (CONFIG.AZIMUTH_RULE !== "optimal") return delta / 2;
+  if (delta < 1e-6) return 0;
+  const s = Math.sin(delta), c = Math.cos(delta);
+  return Math.atan((-3 * c + Math.sqrt(9 * c * c + 8 * s * s)) / (4 * s));
+}
+
+// geometry of one wind condition. g = (V_a cos(eps) cos(phi))^2 (so F = K g), p = cos(eps) cos(delta - phi).
+// g = -1 marks "can't fly" (wind too far forward or too light).
+const GEO = { g: 0, p: 0, Va: 0, delta: 0, phi: 0, dir: 0, ua: 0, va: 0 };
+function geom(u10, v10, hdg) {
+  const ua = u10 * SHEAR - VS * Math.sin(hdg), va = v10 * SHEAR - VS * Math.cos(hdg);
+  const Va = Math.hypot(ua, va), dir = Math.atan2(ua, va);
+  let d = dir - hdg; d = Math.atan2(Math.sin(d), Math.cos(d)); const delta = Math.abs(d);
+  const phi = azimuth(delta);
+  GEO.ua = ua; GEO.va = va; GEO.Va = Va; GEO.dir = dir; GEO.delta = delta; GEO.phi = phi;
+  if (delta >= DELTA_MAX || Va < CONFIG.MIN_APPARENT_WIND_MS) { GEO.g = -1; GEO.p = 0; return GEO; }
+  const r = Va * COS_E * Math.cos(phi);
+  GEO.g = r * r; GEO.p = COS_E * Math.cos(delta - phi);
+  return GEO;
+}
+// tether force and thrust for a kite constant K
+function forceThrust(K, g, p) {
+  if (g < 0) return [0, 0];
+  let F = K * g;
+  if (F > FMAX) { if (LAND_RULE) return [0, 0]; F = FMAX; }
+  return [F, F * p];
+}
+
+// ---- precompute geometry for every leg x month x route point x sample ----
+const NK = CONFIG.ROUTE_SAMPLES, NS = Z.n;
+const RS = Array.from({ length: NK }, (_, k) => routeAt((k + 0.5) / NK * ROUTE_NM));
+const G = new Float32Array(2 * 12 * NK * NS), P = new Float32Array(2 * 12 * NK * NS);
+function precompute() {
+  for (let leg = 0; leg < 2; leg++) for (let m = 0; m < 12; m++) for (let k = 0; k < NK; k++) {
+    const r = RS[k], h = r.hdg + (leg ? Math.PI : 0);
+    const [U, V, s] = windBase(windAt(r.seg, r.f, m));
+    const base = ((leg * 12 + m) * NK + k) * NS;
+    for (let j = 0; j < NS; j++) {
+      const q = geom(U + s * Z.zx[j], V + s * Z.zy[j], h);
+      G[base + j] = q.g; P[base + j] = q.p;
+    }
+  }
+}
+precompute();
+
+function annual(A) {
+  const K = K_PER_M2 * A, T = [[], []], fly = [[], []];
+  for (let leg = 0; leg < 2; leg++) for (let m = 0; m < 12; m++) {
+    const base = (leg * 12 + m) * NK * NS, end = base + NK * NS;
+    let sT = 0, nF = 0;
+    for (let i = base; i < end; i++) {
+      const g = G[i]; if (g < 0) continue;
+      let F = K * g;
+      if (F > FMAX) { if (LAND_RULE) continue; F = FMAX; }
+      sT += F * P[i]; nF++;
+    }
+    T[leg][m] = sT / (NK * NS); fly[leg][m] = nF / (NK * NS);
+  }
+  const mean = a => a.reduce((x, y) => x + y, 0) / a.length;
+  const Tleg = [mean(T[0]), mean(T[1])];
+  const Pleg = Tleg.map(t => t * VS / PAR.ETA_D / 1000);
+  const Prt = (Pleg[0] + Pleg[1]) / 2;
+  const hours = 2 * ROUTE_NM / CONFIG.SHIP_SPEED_KN * CONFIG.ROUND_TRIPS_PER_YEAR;
+  const fuel = Prt * hours * CONFIG.SFOC_G_PER_KWH / 1e6;
+  return { T, fly, Tleg, Pleg, Prt, pct: Pleg.map(p => 100 * p / CONFIG.ME_POWER_KW), pctRt: 100 * Prt / CONFIG.ME_POWER_KW,
+    flyLeg: [mean(fly[0]), mean(fly[1])], fuel, hours };
+}
+
+// expected thrust at each route point for one leg/month (map line widths)
+function routeProfile(A, leg, m) {
+  const K = K_PER_M2 * A, out = new Float64Array(NK);
+  for (let k = 0; k < NK; k++) {
+    const base = ((leg * 12 + m) * NK + k) * NS; let s = 0;
+    for (let j = 0; j < NS; j++) s += forceThrust(K, G[base + j], P[base + j])[1];
+    out[k] = s / NS;
+  }
+  return out;
+}
+
+// everything at one point (any route position)
+function pointEval(A, s, m, leg) {
+  const K = K_PER_M2 * A, r = routeAt(s), h = r.hdg + (leg ? Math.PI : 0);
+  const w = windAt(r.seg, r.f, m), [U, V, sig] = windBase(w);
+  const dots = []; let sT = 0, sF = 0, nF = 0;
+  for (let j = 0; j < NS; j++) {
+    const q = geom(U + sig * Z.zx[j], V + sig * Z.zy[j], h);
+    const [F, T] = forceThrust(K, q.g, q.p);
+    const flying = F > 0;
+    dots.push([q.ua, q.va, flying]);
+    sT += T; if (flying) { sF += F; nF++; }
+  }
+  // typical condition: monthly mean speed from the dominant (vector-mean) direction
+  const k = w.S / Math.max(Math.hypot(w.U, w.V), 1e-9), u0 = w.U * k, v0 = w.V * k;
+  const q = geom(u0, v0, h);
+  const typ = { u: u0, v: v0, S: w.S, ua: q.ua, va: q.va, Va: q.Va, delta: q.delta, phi: q.phi, dir: q.dir, g: q.g, p: q.p };
+  const raw = q.g >= 0 ? K * q.g : 0;
+  const [F0, T0] = forceThrust(K, q.g, q.p);
+  Object.assign(typ, { Fraw: raw, F: F0, T: T0, landed: q.g >= 0 && F0 === 0, capped: raw > FMAX });
+  return { r, h, w, dots, typ, ET: sT / NS, EF: nF ? sF / nF : 0, flyFrac: nF / NS, steady: Math.hypot(w.U, w.V) / w.S };
+}
+
+// =====================================================================
+//  UI
+// =====================================================================
+const $ = id => document.getElementById(id);
+const fmt = (x, d = 0) => x.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const COMPASS = ["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSW","SW","WSW","W","WNW","NW","NNW"];
+const compass = deg => COMPASS[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
+const norm360 = d => ((d % 360) + 360) % 360;
+const MSHORT = MONTHS.map(m => m.slice(0, 3));
+const state = { A: CONFIG.AREA_M2, m: 4, pos: 620, leg: 0, ann: null, sweep: null, sweepStale: false };
+
+// chips: the current inputs, visible while scrolling
+function drawChips() {
+  $("chips").innerHTML = [
+    `${fmt(PAR.TETHER_LENGTH_M)} m tether · ${fmt(H_KITE)} m up`,
+    `L/D ${fmt(PAR.CL / PAR.CD, 1)}`,
+    `${LAND_RULE ? "Land" : "Depower"} above ${fmt(FMAX / 1000)} kN`,
+    `${fmt(CONFIG.SHIP_SPEED_KN, 1)} kn`
+  ].map(t => `<span class="chip">${t}</span>`).join("");
+  $("dialWindLbl").textContent = `True wind, ${fmt(H_KITE)} m`;
+}
+
+const LOCK_SVG = {
+  open: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="7" width="11" height="7.5" rx="1.5" fill="currentColor"/><path d="M5 7V4.8a3 3 0 0 1 5.8-1.1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  closed: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="7" width="11" height="7.5" rx="1.5" fill="currentColor"/><path d="M5 7V4.8a3 3 0 0 1 6 0V7" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>'
+};
+function setLock(btn, input, wrap, locked, name) {
+  btn.setAttribute("aria-pressed", String(locked));
+  btn.textContent = locked ? "Locked" : "Lock";
+  const verb = locked ? "Unlock" : "Lock";
+  btn.setAttribute("aria-label", `${verb} ${name}`); btn.title = `${verb} ${name}`;
+  input.disabled = locked;
+  wrap.classList.toggle("locked", locked);
+}
+
+// ---------- kite area (sticky bar) ----------
+const area = $("area");
+const SA = SLIDERS.AREA_M2;
+area.min = SA.min; area.max = SA.max; area.step = SA.step; area.value = CONFIG.AREA_M2;
+const areaLocked = () => $("areaLock").getAttribute("aria-pressed") === "true";
+setLock($("areaLock"), area, document.querySelector(".area-ctl"), SA.locked, "kite area");
+$("areaLock").addEventListener("click", () => setLock($("areaLock"), area, document.querySelector(".area-ctl"), !areaLocked(), "kite area"));
+
+// ---------- design-input sliders ----------
+// kind: "geom" changes the wind geometry (recompute everything), "force" changes K or the cap, "power" only rescales power
+const INPUTS = [
+  { key: "TETHER_LENGTH_M", name: "tether length", label: "Tether length", kind: "geom",
+    get: () => PAR.TETHER_LENGTH_M, set: v => { PAR.TETHER_LENGTH_M = v; }, show: v => `${fmt(v)} m`,
+    hint: () => `Kite altitude <b>${fmt(H_KITE)} m</b>, wind ×${fmt(SHEAR, 2)} vs 10 m. Traut: 350 m. <b>Limitation:</b> the model has no tether weight or drag, so a longer tether always looks better. Read this as "what if the kite flew higher", not as tether sizing.` },
+  { key: "ELEVATION_DEG", name: "tether elevation", label: "Tether elevation", kind: "geom",
+    get: () => PAR.ELEVATION_DEG, set: v => { PAR.ELEVATION_DEG = v; }, show: v => `${fmt(v)}°`,
+    hint: () => `Higher lifts the kite but tilts the pull upward (cos³ε = ${fmt(COS_E ** 3, 2)}). Traut: 25°.` },
+  { key: "LIFT_TO_DRAG", name: "lift-to-drag ratio", label: "Kite L/D", kind: "force",
+    get: () => PAR.CL / PAR.CD, set: v => { PAR.CD = PAR.CL / v; }, show: v => fmt(v, 1),
+    hint: () => `Stands in for the kite design. C<sub>L</sub> ${fmt(PAR.CL, 1)}, C<sub>D</sub> ${fmt(PAR.CD, 3)}, K = ${fmt(K_PER_M2, 2)} N/(m/s)² per m². Traut: 3.5.` },
+  { key: "MAX_TETHER_FORCE_KN", name: "maximum tether force", label: "Tether limit", kind: "force",
+    get: () => PAR.MAX_TETHER_FORCE_N / 1000, set: v => { PAR.MAX_TETHER_FORCE_N = v * 1000; }, show: v => `${fmt(v)} kN`,
+    hint: () => `Working load the line is sized for. Traut: 1,000 kN. In strong wind the kite can pull harder than this.` }
+];
+(function buildInputs() {
+  const host = $("inputs");
+  host.innerHTML = INPUTS.map(d => {
+    const s = SLIDERS[d.key];
+    return `<div class="inp" id="w_${d.key}">
+      <div class="inp-head"><label for="s_${d.key}">${d.label}</label><span class="inp-val" id="v_${d.key}"></span>
+        <button type="button" class="lock" id="l_${d.key}" aria-pressed="false"></button></div>
+      <input type="range" id="s_${d.key}" min="${s.min}" max="${s.max}" step="${s.step}">
+      <p class="inp-hint" id="h_${d.key}"></p></div>`;
+  }).join("");
+  // the strong-wind rule sits inside the max-force card
+  $("w_MAX_TETHER_FORCE_KN").insertAdjacentHTML("beforeend", `<div class="rule" id="w_RULE">
+      <span class="label">When the pull would exceed it</span>
+      <div class="seg" role="radiogroup" aria-label="When the pull would exceed the max tether force">
+        <button type="button" role="radio" id="ruleDep">Depower</button><button type="button" role="radio" id="ruleLand">Land</button>
+      </div>
+      <p class="inp-hint"><b>Depower</b>: the kite flattens its angle and keeps pulling at the limit. <b>Land</b>: it comes down and gives no thrust until the wind drops.</p></div>`);
+  for (const d of INPUTS) {
+    const s = SLIDERS[d.key], input = $("s_" + d.key), wrap = $("w_" + d.key), btn = $("l_" + d.key);
+    input.value = d.get();
+    setLock(btn, input, wrap, s.locked, d.name);
+    btn.addEventListener("click", () => setLock(btn, input, wrap, btn.getAttribute("aria-pressed") !== "true", d.name));
+    input.addEventListener("input", () => { d.set(+input.value); paramsChanged(d.kind); });
+  }
+  const setRule = r => {
+    PAR.STRONG_WIND_RULE = r;
+    $("ruleDep").setAttribute("aria-checked", String(r !== "land"));
+    $("ruleLand").setAttribute("aria-checked", String(r === "land"));
+  };
+  setRule(PAR.STRONG_WIND_RULE);
+  $("ruleDep").addEventListener("click", () => { setRule("depower"); paramsChanged("force"); });
+  $("ruleLand").addEventListener("click", () => { setRule("land"); paramsChanged("force"); });
+  $("w_RULE").querySelector(".seg").addEventListener("keydown", e => {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") { const b = PAR.STRONG_WIND_RULE === "land" ? $("ruleDep") : $("ruleLand"); b.click(); b.focus(); e.preventDefault(); }
+  });
+})();
+function drawInputs() {
+  for (const d of INPUTS) { $("v_" + d.key).textContent = d.show(d.get()); $("h_" + d.key).innerHTML = d.hint(); }
+}
+let geomDirty = false, geomTimer = null, sweepTimer = null;
+function paramsChanged(kind) {
+  derive();
+  state.sweepStale = true;
+  if (kind === "geom") {
+    // the wind geometry takes ~0.3 s to rebuild, so wait for the slider to pause
+    geomDirty = true;
+    drawInputs(); drawChips();
+    document.body.classList.add("recalc");
+    clearTimeout(geomTimer);
+    geomTimer = setTimeout(() => { precompute(); geomDirty = false; document.body.classList.remove("recalc"); schedule(true); scheduleSweep(); }, 160);
+    return;
+  }
+  schedule(true);
+  scheduleSweep();
+}
+function scheduleSweep() {
+  clearTimeout(sweepTimer);
+  sweepTimer = setTimeout(() => { if (geomDirty) return; computeSweep(); state.sweepStale = false; drawAreaChart(); }, 250);
+}
+
+// ---------- map ----------
+// simplified Natural Earth 50m land, pre-projected to the map frame
+const LAND = {"W": 600, "H": 303, "LON0": -100, "LON1": 12, "LAT0": 17, "LAT1": 61, "d": "M603.1 35.9L602.2 37.1L601.2 38.1L602.2 39.4L600.5 40.0L600.4 41.5L599.3 42.9L598.6 41.5L598.2 40.0L596.8 39.8L595.5 39.1L595.3 37.6L594.5 36.4L595.8 36.3L597.1 35.3L598.4 35.1L598.3 36.3L599.6 35.6L600.2 34.1L601.7 33.6L603.1 34.0L603.1 35.9ZM592.7 37.1L593.2 38.2L593.5 39.5L592.6 41.0L590.7 40.7L589.2 40.2L588.5 38.9L589.3 37.6L590.8 37.1L592.0 37.5ZM552.6 146.1L553.9 146.1L553.7 147.7L553.1 148.8L551.2 149.0L550.4 148.0L549.1 148.2L550.6 145.6L552.6 144.8L552.6 146.1ZM204.6 82.0L202.4 82.1L200.6 81.7L199.3 81.5L198.0 81.1L195.2 79.9L194.1 78.5L190.5 76.9L191.5 76.1L194.2 76.6L196.7 77.0L199.0 77.8L200.2 78.3L202.9 79.8L204.5 80.7L204.9 81.9ZM208.4 103.7L209.7 103.4L208.7 104.7L210.0 105.1L211.8 103.7L210.5 103.8L211.1 102.5L212.0 101.5L213.8 101.9L215.0 102.2L215.2 103.5L213.7 104.5L212.2 105.7L210.7 106.1L209.0 106.0L207.7 106.2L206.5 105.2L206.3 103.7L206.7 102.1L207.6 101.2L209.0 98.8L210.2 97.3L211.2 96.4L212.5 98.0L211.7 100.5L211.4 101.8L210.3 102.7L208.4 103.7ZM121.8 293.0L123.1 293.3L124.3 294.0L126.7 295.1L127.3 296.3L126.3 297.0L125.0 296.6L123.8 296.8L122.6 296.9L122.1 298.1L120.7 297.1L119.1 297.0L118.0 295.8L116.3 294.6L116.5 293.2L118.0 292.9L120.8 292.9ZM181.4 293.0L182.8 293.1L184.1 293.5L183.7 294.8L182.3 296.3L180.8 296.5L179.4 296.2L178.0 296.2L176.7 296.3L175.8 295.1L175.5 293.9L175.9 292.7L177.8 292.7L181.1 292.8ZM193.9 100.1L195.3 99.6L196.7 100.1L198.4 100.3L199.8 100.2L201.3 100.0L202.7 99.9L201.9 101.4L200.7 101.9L200.9 103.1L199.6 103.5L198.2 102.9L197.9 101.4L196.8 101.9L195.2 101.9L193.9 100.8L192.7 100.5L192.1 99.2L190.8 98.9L191.4 97.5L192.9 96.0L192.4 98.0L193.4 98.9L193.9 100.1ZM147.3 137.8L148.5 137.6L150.0 137.4L148.2 138.5L147.0 138.9L143.6 140.1L141.3 140.5L139.8 140.7L139.9 139.2L141.2 138.8L142.3 138.2L143.6 138.2L145.6 137.9L147.1 137.5L148.5 136.7L147.3 137.8ZM97.3 260.6L98.7 260.9L100.4 260.6L101.8 261.1L103.7 261.0L104.7 261.9L106.2 262.0L107.4 262.5L108.9 263.5L109.6 264.6L110.6 265.5L113.0 265.8L117.1 267.8L118.0 268.8L119.8 270.0L121.4 270.3L122.4 271.0L121.3 271.2L122.1 272.2L123.6 272.3L124.7 273.0L126.1 273.6L128.2 274.5L130.1 274.7L130.5 275.8L129.9 277.0L131.1 277.4L132.8 277.4L134.2 277.7L135.4 278.4L136.5 279.7L137.8 280.2L138.5 281.2L137.1 281.8L135.9 281.9L134.7 282.3L133.3 283.0L131.0 283.1L129.8 282.6L127.7 282.4L125.8 282.6L124.4 282.8L123.2 283.1L120.7 283.3L119.4 283.3L120.2 281.8L122.1 280.3L122.7 279.2L122.1 278.1L120.7 277.6L118.6 277.4L117.2 277.1L116.2 275.9L115.2 275.1L115.0 273.4L114.4 271.9L113.4 271.2L111.5 271.6L107.6 270.3L106.4 269.7L105.0 268.3L102.0 268.2L101.0 267.1L99.9 267.9L97.4 267.2L96.0 265.9L97.7 265.4L97.5 264.0L92.5 263.8L91.0 265.0L90.1 266.1L89.0 267.0L87.6 267.3L86.2 267.4L85.7 268.7L84.4 269.3L83.3 270.0L82.4 269.1L81.2 269.8L82.9 268.4L83.7 266.8L84.2 265.3L85.1 264.3L89.7 261.9L92.9 261.4L94.6 260.6L95.9 260.4L97.3 260.6ZM587.3 138.5L588.2 140.8L587.4 142.8L587.7 144.0L587.2 149.1L586.9 150.4L585.3 150.0L584.1 151.2L582.9 152.1L581.5 151.3L580.8 150.1L580.7 148.2L581.0 146.5L581.2 145.3L581.0 144.1L581.1 142.6L580.5 141.2L579.6 140.1L579.7 138.6L581.1 138.9L582.3 138.4L583.9 137.0L584.9 136.1L586.4 136.7L587.2 137.6ZM586.5 125.3L586.5 126.6L586.9 129.7L586.2 131.0L586.0 132.7L585.3 134.6L583.9 134.4L582.9 133.7L582.4 132.5L581.9 131.3L582.3 130.2L581.8 129.1L582.4 127.1L583.9 126.4L585.0 125.8L585.7 124.3L586.5 125.3ZM150.2 284.3L151.6 283.8L153.0 283.1L154.9 283.1L156.3 283.1L157.3 283.9L159.1 284.6L160.6 284.6L161.4 286.0L162.1 287.2L164.3 287.0L163.3 287.8L164.6 288.9L165.9 289.1L167.8 289.9L169.0 291.2L169.5 292.4L168.8 293.5L167.9 294.6L166.4 293.3L164.6 293.1L163.3 293.2L161.9 293.1L160.6 293.5L159.7 294.4L158.1 294.6L157.3 293.8L155.8 294.1L154.9 295.2L153.9 297.1L153.2 298.6L152.3 297.8L151.7 296.4L150.8 295.3L149.7 294.5L147.3 294.6L146.0 295.0L143.8 294.7L142.6 294.4L141.2 294.5L140.2 295.3L138.8 294.6L137.0 293.7L137.2 291.8L138.7 291.7L140.0 292.1L141.5 292.5L145.1 293.0L146.5 292.6L147.8 292.3L147.5 291.0L146.5 290.0L145.6 288.7L146.0 286.9L145.4 285.6L142.9 284.8L142.5 283.7L144.0 283.0L145.3 282.8L146.6 283.0L147.7 283.6L148.8 284.1L150.2 284.3ZM519.1 17.1L518.5 18.4L517.4 19.0L515.5 20.3L514.3 20.9L515.0 21.9L513.9 22.9L515.0 23.4L516.3 23.0L517.5 22.7L519.2 22.9L520.4 22.8L523.7 22.9L525.2 22.9L526.2 24.1L525.3 25.1L524.7 26.5L523.6 28.5L522.7 29.4L521.8 30.6L519.4 31.3L518.0 31.9L519.2 31.7L521.5 32.2L519.8 33.1L518.7 33.9L517.1 34.2L515.4 33.8L519.4 34.8L520.5 34.2L521.8 34.2L524.2 35.1L525.9 36.7L527.1 37.9L527.6 39.5L528.1 41.1L528.8 42.9L531.7 44.5L532.9 45.5L534.5 46.9L534.8 48.6L535.8 50.0L534.3 50.0L532.7 50.1L534.1 50.3L536.4 51.9L537.6 54.0L536.4 55.3L537.2 56.4L538.5 55.5L540.1 55.3L541.4 55.4L543.1 55.8L544.6 56.8L545.1 58.0L544.8 59.4L544.4 60.9L543.3 62.0L542.6 63.0L540.8 63.3L539.7 63.8L540.5 64.9L538.9 65.3L540.5 66.4L542.5 66.3L543.2 67.6L541.3 68.5L539.9 69.3L538.6 69.9L537.3 70.4L534.6 70.1L533.3 70.2L531.5 70.5L529.6 69.9L528.1 69.6L527.1 70.7L525.7 70.8L523.1 71.4L521.5 71.1L520.2 70.8L517.5 71.4L516.8 72.8L516.0 74.1L514.8 73.8L513.4 73.1L511.6 73.4L510.4 73.7L508.9 74.6L507.7 75.6L506.6 75.0L505.4 74.8L507.1 74.1L508.2 73.2L509.2 72.1L511.2 70.4L511.5 69.0L512.7 68.7L513.3 67.6L515.1 67.3L516.4 67.3L517.6 67.5L518.9 67.4L520.3 66.1L521.3 65.2L522.7 63.8L521.4 64.6L519.8 65.2L518.3 66.1L516.6 66.0L515.6 65.2L514.3 64.9L513.0 64.9L512.2 63.8L510.4 64.2L508.3 64.0L507.5 62.8L508.5 62.0L511.3 60.9L513.1 60.1L514.0 58.7L513.9 57.4L513.7 56.0L512.4 55.8L511.2 56.4L512.1 55.0L513.7 53.6L515.3 53.0L516.8 53.0L519.1 53.3L520.4 53.1L519.3 51.6L520.0 50.0L519.5 48.9L520.4 47.9L519.4 47.1L517.9 46.6L516.6 45.0L517.2 42.9L518.2 42.0L519.4 41.6L517.3 41.6L516.1 42.1L514.8 42.7L513.6 42.8L512.1 42.8L510.8 42.8L509.5 42.9L508.2 42.3L509.1 40.3L510.1 38.8L510.6 37.5L509.5 36.5L509.6 35.3L511.2 34.9L509.8 34.1L508.4 34.5L508.9 32.8L507.4 33.8L506.9 35.6L505.9 38.6L505.3 37.0L506.2 35.8L505.7 34.1L506.1 32.7L506.6 31.5L507.3 30.2L505.9 30.5L504.3 30.6L503.3 29.7L505.0 28.6L505.8 26.8L505.5 25.5L504.5 24.5L505.8 23.8L504.9 22.9L505.7 21.5L507.1 21.5L506.7 20.2L507.1 19.0L508.6 18.9L508.5 17.3L510.0 16.7L511.4 16.8L513.3 16.8L515.0 16.7L517.2 16.4L519.4 16.3ZM497.2 40.9L498.5 40.1L499.8 40.0L501.0 39.7L502.3 39.8L503.7 41.1L505.1 42.6L504.2 43.5L505.8 43.6L506.4 44.8L505.4 45.6L504.5 46.6L503.5 47.9L501.9 48.1L502.3 50.0L502.8 51.1L502.9 52.4L503.2 53.9L503.4 55.6L502.7 56.9L502.4 58.2L501.4 59.4L500.6 60.7L499.0 60.8L497.8 61.0L495.9 61.1L494.9 62.0L493.5 62.4L492.5 63.2L491.3 62.7L490.7 64.0L488.9 64.5L485.9 65.4L484.6 65.3L483.0 65.5L484.6 64.3L482.7 64.4L481.5 64.7L482.5 63.8L484.3 62.8L481.7 63.5L480.3 63.4L480.9 62.2L482.4 61.4L480.8 61.1L481.4 60.0L483.4 60.2L482.6 59.2L484.1 58.2L485.7 58.0L487.2 57.7L488.7 57.3L487.5 56.8L486.6 57.6L485.0 57.7L483.4 58.0L484.7 56.6L485.9 54.4L487.2 54.0L485.0 53.5L483.7 52.8L482.1 52.4L481.5 51.3L482.8 51.0L483.5 49.7L482.7 48.6L482.4 47.2L483.7 46.1L485.8 46.1L486.9 46.7L488.9 46.4L489.9 45.4L491.3 44.9L492.1 43.8L490.4 44.0L488.8 43.5L490.0 42.8L490.7 41.6L491.4 40.3L492.8 40.0L494.2 40.0L495.0 41.1L495.4 39.6L496.6 39.3L497.9 39.5L497.0 40.7ZM-4.0 -4.0L604.0 -4.0L604.0 -2.8L604.0 -1.3L604.0 0.0L604.0 1.9L604.0 3.3L604.0 4.5L604.0 6.6L604.0 5.2L604.0 3.9L604.0 7.3L604.0 5.7L604.0 4.0L604.0 5.3L604.0 7.3L604.0 8.9L604.0 10.2L604.0 11.7L604.0 13.0L604.0 14.2L604.0 15.8L604.0 17.6L604.0 20.1L604.0 21.5L604.0 22.8L604.0 24.3L604.0 25.6L604.0 26.8L604.0 28.4L604.0 29.7L604.0 31.3L604.0 32.8L604.0 34.1L604.0 32.8L604.0 31.3L604.0 32.6L604.0 35.5L604.0 36.8L604.0 38.9L604.0 40.4L604.0 42.1L604.0 43.5L604.0 45.2L604.0 46.9L604.0 48.2L604.0 49.7L604.0 51.3L604.0 53.2L604.0 54.8L604.0 57.2L604.0 58.8L604.0 61.3L604.0 63.3L604.0 64.7L604.0 66.0L604.0 67.4L604.0 68.8L604.0 67.3L604.0 65.6L604.0 62.6L604.0 59.4L604.0 57.7L604.0 56.0L604.0 50.0L604.0 48.7L604.0 44.6L604.0 42.2L604.0 40.0L604.0 35.9L604.0 33.9L604.0 29.6L604.0 27.4L604.0 25.5L604.0 24.3L604.0 22.9L604.0 20.5L604.0 18.7L604.0 17.1L604.0 15.9L604.0 12.9L604.0 11.1L604.0 9.6L604.0 7.9L604.0 6.7L604.0 5.3L604.0 4.0L604.0 2.3L604.0 1.0L604.0 -0.2L604.0 -1.7L604.0 -2.9L604.0 0.3L604.0 1.7L604.0 -0.2L604.0 -1.6L604.0 -3.7L604.0 -1.9L604.0 0.0L604.0 1.5L604.0 3.1L604.0 6.2L604.0 7.7L604.0 9.2L604.0 10.4L604.0 11.9L604.0 13.3L604.0 14.7L604.0 13.2L604.0 11.9L604.0 10.2L604.0 8.5L604.0 9.9L604.0 11.2L604.0 12.6L604.0 11.2L604.0 12.7L604.0 15.5L604.0 17.0L604.0 18.6L604.0 21.6L604.0 22.8L604.0 24.4L604.0 25.7L604.0 27.8L604.0 30.1L604.0 31.5L604.0 33.5L604.0 35.2L604.0 36.5L604.0 37.8L604.0 40.2L604.0 41.7L604.0 43.2L604.0 45.1L604.0 47.8L604.0 49.6L604.0 48.0L604.0 46.3L604.0 47.5L604.0 48.9L604.0 50.2L604.0 48.8L604.0 50.4L604.0 49.1L604.0 47.2L604.0 49.5L604.0 51.0L604.0 52.8L604.0 54.4L604.0 55.8L604.0 57.5L604.0 59.0L604.0 60.4L604.0 61.6L604.0 62.9L604.0 64.6L604.0 66.0L604.0 67.3L604.0 68.5L604.0 70.2L604.0 72.0L604.0 74.8L604.0 76.4L604.0 78.5L604.0 80.4L604.0 81.8L604.0 84.2L604.0 85.9L604.0 87.3L604.0 88.9L604.0 90.3L604.0 92.0L604.0 93.8L604.0 96.0L604.0 98.2L604.0 99.6L604.0 101.6L604.0 103.8L604.0 105.8L604.0 107.5L604.0 109.0L604.0 110.3L604.0 112.5L604.0 113.7L604.0 117.3L604.0 119.2L604.0 121.0L604.0 123.7L604.0 125.1L604.0 122.3L604.0 124.0L604.0 125.5L604.0 127.2L604.0 128.6L604.0 130.2L604.0 131.5L604.0 132.8L604.0 134.3L604.0 135.6L604.0 136.9L604.0 138.2L604.0 139.6L604.0 141.2L604.0 143.3L604.0 144.6L604.0 146.1L604.0 147.6L604.0 148.9L604.0 150.3L604.0 152.2L604.0 153.7L604.0 157.2L604.0 159.2L604.0 160.6L604.0 163.4L604.0 164.9L604.0 167.1L604.0 168.9L604.0 170.8L604.0 172.0L604.0 174.3L604.0 175.6L604.0 177.8L604.0 179.5L604.0 181.0L604.0 182.5L604.0 181.0L604.0 182.9L604.0 181.3L604.0 179.5L604.0 178.0L604.0 175.9L604.0 174.6L604.0 173.0L604.0 171.4L604.0 169.8L604.0 168.1L604.0 166.8L604.0 165.6L604.0 164.2L604.0 162.4L604.0 161.0L604.0 159.8L604.0 158.5L604.0 160.2L604.0 158.9L604.0 157.6L604.0 156.4L604.0 155.1L604.0 153.8L604.0 152.4L604.0 149.5L604.0 147.9L604.0 146.7L604.0 145.3L604.0 146.5L604.0 149.0L604.0 150.4L604.0 151.8L604.0 153.1L604.0 151.9L604.0 150.0L604.0 148.7L604.0 147.2L604.0 145.7L604.0 144.3L604.0 142.2L604.0 140.9L604.0 138.8L604.0 140.1L604.0 143.0L604.0 144.7L604.0 146.3L604.0 147.6L604.0 150.0L604.0 152.5L604.0 154.1L604.0 155.5L604.0 157.1L604.0 159.0L604.0 160.4L604.0 161.9L604.0 163.4L604.0 161.9L604.0 160.6L604.0 162.1L604.0 164.0L604.0 165.3L604.0 167.1L604.0 168.5L604.0 169.8L604.0 171.3L604.0 172.6L604.0 174.0L604.0 175.8L604.0 178.3L604.0 180.1L604.0 181.9L604.0 183.7L604.0 186.9L604.0 188.4L604.0 191.2L604.0 192.7L604.0 194.4L604.0 195.8L604.0 197.1L604.0 198.6L604.0 200.4L604.0 201.7L604.0 199.5L604.0 200.9L604.0 202.3L604.0 204.4L604.0 206.2L604.0 207.5L604.0 209.6L604.0 211.0L604.0 212.6L604.0 213.8L604.0 216.3L604.0 219.4L604.0 220.7L604.0 222.0L604.0 223.7L604.0 225.2L604.0 227.0L604.0 229.0L604.0 230.8L604.0 232.4L604.0 234.9L604.0 236.4L604.0 235.2L604.0 236.7L604.0 238.2L604.0 239.4L604.0 240.6L604.0 242.2L604.0 243.8L604.0 245.2L604.0 246.5L604.0 247.9L604.0 249.2L604.0 250.5L604.0 251.8L604.0 253.1L604.0 254.7L604.0 255.9L604.0 257.4L604.0 259.0L604.0 260.4L604.0 262.1L604.0 263.3L604.0 264.9L604.0 266.3L604.0 265.0L604.0 263.5L604.0 261.9L604.0 263.1L604.0 264.5L604.0 265.8L604.0 267.0L604.0 269.0L604.0 270.3L604.0 271.6L604.0 273.5L604.0 275.2L604.0 276.4L604.0 277.7L604.0 279.2L604.0 280.5L604.0 279.2L604.0 277.4L604.0 276.0L604.0 274.6L604.0 273.1L604.0 271.6L604.0 270.2L604.0 271.6L604.0 272.9L604.0 274.6L604.0 275.8L604.0 277.3L604.0 278.7L604.0 280.3L604.0 282.4L604.0 285.2L604.0 286.6L604.0 288.3L604.0 290.7L604.0 292.2L604.0 293.9L604.0 295.7L604.0 297.0L604.0 298.4L604.0 300.5L604.0 302.6L604.0 304.4L604.0 305.7L604.0 307.0L604.0 305.3L604.0 303.7L604.0 302.3L604.0 300.8L604.0 302.8L604.0 304.5L604.0 306.0L604.0 304.6L604.0 306.0L604.0 303.9L604.0 302.1L604.0 299.1L604.0 297.3L604.0 294.7L604.0 292.6L604.0 291.1L604.0 288.2L604.0 289.5L604.0 287.9L604.0 286.7L604.0 285.0L604.0 283.3L604.0 282.1L604.0 283.4L604.0 281.8L604.0 279.7L604.0 281.3L604.0 280.0L604.0 278.5L604.0 280.3L604.0 277.4L604.0 275.6L604.0 274.3L604.0 271.9L604.0 269.4L604.0 267.5L604.0 266.2L604.0 263.7L604.0 262.5L604.0 264.2L604.0 261.5L604.0 259.8L604.0 258.0L604.0 259.3L604.0 260.8L604.0 262.3L604.0 263.9L604.0 265.6L604.0 266.8L604.0 268.2L604.0 269.7L604.0 268.5L604.0 267.2L604.0 265.4L604.0 266.6L604.0 267.9L604.0 269.4L604.0 266.7L604.0 268.3L604.0 269.8L604.0 268.5L604.0 269.7L604.0 271.0L604.0 268.5L604.0 270.5L604.0 268.3L604.0 267.1L604.0 268.6L604.0 269.8L604.0 271.7L604.0 272.9L604.0 274.7L604.0 277.2L604.0 278.7L604.0 279.9L604.0 281.2L604.0 282.4L604.0 283.8L604.0 285.1L604.0 288.4L604.0 290.0L604.0 291.4L604.0 293.4L604.0 295.6L604.0 297.6L604.0 298.8L604.0 301.1L604.0 302.3L604.0 303.8L604.0 305.3L604.0 306.5L604.0 301.6L604.0 299.4L604.0 296.8L604.0 295.4L604.0 293.6L604.0 292.1L604.0 290.7L604.0 289.1L604.0 287.7L604.0 286.4L604.0 284.0L604.0 281.8L604.0 278.5L604.0 276.6L604.0 274.9L604.0 272.9L604.0 271.7L604.0 270.3L604.0 269.0L604.0 267.5L604.0 268.7L604.0 270.0L604.0 271.8L604.0 273.9L604.0 275.7L604.0 277.3L604.0 274.8L604.0 272.0L604.0 269.7L604.0 267.2L604.0 265.9L604.0 264.6L604.0 263.0L604.0 261.7L604.0 263.2L604.0 261.3L604.0 259.2L604.0 257.7L604.0 256.5L604.0 255.2L604.0 253.6L604.0 252.3L604.0 249.6L604.0 247.1L604.0 245.3L604.0 243.9L604.0 245.5L604.0 246.9L604.0 245.6L604.0 244.1L604.0 242.5L604.0 240.8L604.0 238.5L604.0 236.3L604.0 234.8L604.0 233.5L604.0 235.3L604.0 237.2L604.0 236.0L604.0 234.5L604.0 233.2L604.0 231.9L604.0 229.9L604.0 228.5L604.0 226.3L604.0 224.3L604.0 222.2L604.0 220.9L604.0 219.6L604.0 218.0L604.0 216.6L604.0 214.4L604.0 213.2L604.0 211.4L604.0 210.0L604.0 211.2L604.0 212.6L604.0 213.9L604.0 215.4L604.0 217.0L604.0 218.5L604.0 220.5L604.0 222.0L604.0 223.5L604.0 224.8L604.0 226.3L604.0 228.0L604.0 229.8L604.0 231.1L604.0 232.9L604.0 234.4L604.0 236.5L604.0 237.9L604.0 240.3L604.0 242.1L604.0 243.6L604.0 245.0L604.0 247.3L604.0 248.8L604.0 246.7L604.0 245.2L604.0 243.7L604.0 241.1L604.0 242.5L604.0 244.3L604.0 246.0L604.0 247.5L604.0 250.2L604.0 251.5L604.0 252.8L604.0 254.3L604.0 253.0L604.0 251.6L604.0 249.9L604.0 247.6L604.0 246.3L604.0 244.5L604.0 242.4L604.0 240.7L604.0 239.4L604.0 242.4L604.0 244.0L604.0 247.8L604.0 249.9L604.0 251.6L604.0 253.8L604.0 255.3L604.0 256.8L604.0 258.1L604.0 259.4L604.0 260.8L604.0 263.1L604.0 264.6L604.0 266.5L604.0 268.2L604.0 270.1L604.0 272.0L604.0 273.5L604.0 274.7L604.0 276.8L604.0 278.9L604.0 280.7L604.0 282.7L604.0 284.6L604.0 286.3L604.0 287.5L604.0 289.1L604.0 290.4L604.0 292.1L604.0 295.0L604.0 296.2L604.0 299.0L604.0 300.4L604.0 301.9L604.0 303.2L604.0 304.7L604.0 306.6L604.0 305.4L604.0 303.9L604.0 302.7L604.0 301.2L604.0 300.0L604.0 298.4L604.0 296.9L604.0 294.3L604.0 293.0L604.0 291.4L604.0 290.1L604.0 288.7L604.0 285.8L604.0 284.3L604.0 282.4L604.0 280.5L604.0 278.8L604.0 277.3L604.0 275.6L604.0 273.3L604.0 271.9L604.0 270.1L604.0 268.3L604.0 266.5L604.0 264.5L604.0 263.3L604.0 261.8L604.0 260.3L604.0 257.8L604.0 255.4L604.0 253.9L604.0 251.6L604.0 249.1L604.0 247.4L604.0 245.9L604.0 243.5L604.0 241.7L604.0 240.3L604.0 236.9L604.0 235.0L604.0 233.7L604.0 232.4L604.0 229.1L604.0 227.0L604.0 225.4L604.0 223.8L604.0 222.3L604.0 217.9L604.0 216.5L604.0 218.5L604.0 222.0L604.0 224.8L604.0 226.5L604.0 228.0L604.0 225.5L604.0 223.3L604.0 221.9L604.0 220.5L604.0 218.4L604.0 216.8L604.0 214.9L604.0 213.7L604.0 215.2L604.0 216.7L604.0 218.1L604.0 220.4L604.0 221.8L604.0 223.4L604.0 225.8L604.0 227.4L604.0 229.3L604.0 231.2L604.0 232.9L604.0 236.6L604.0 240.9L604.0 243.1L604.0 244.9L604.0 246.9L604.0 251.5L604.0 252.9L604.0 254.3L604.0 255.9L604.0 258.6L604.0 262.1L604.0 263.5L604.0 265.9L604.0 267.9L604.0 270.2L604.0 271.4L604.0 273.2L604.0 274.7L604.0 276.2L604.0 278.5L604.0 281.5L604.0 283.8L604.0 285.2L604.0 288.6L604.0 290.5L604.0 292.3L604.0 293.8L604.0 295.6L604.0 300.1L604.0 302.4L604.0 304.9L604.0 307.0L602.5 307.0L600.5 307.0L598.8 307.0L600.1 307.0L601.5 307.0L603.0 307.0L601.5 307.0L603.0 307.0L601.7 307.0L600.2 307.0L598.9 307.0L596.7 307.0L595.3 307.0L593.8 307.0L592.4 307.0L591.2 307.0L589.3 307.0L588.0 307.0L589.3 307.0L588.0 307.0L586.8 307.0L585.5 307.0L584.2 307.0L585.6 307.0L584.3 307.0L582.3 307.0L583.6 307.0L585.5 307.0L587.0 307.0L588.3 307.0L586.9 307.0L588.3 307.0L586.9 307.0L585.6 307.0L583.9 307.0L582.6 307.0L581.4 307.0L579.9 307.0L577.5 307.0L576.2 307.0L574.7 307.0L573.3 307.0L572.1 307.0L570.8 307.0L569.5 307.0L567.7 307.0L565.7 307.0L563.7 307.0L561.8 307.0L560.5 307.0L557.8 307.0L554.4 307.0L555.8 307.0L554.5 307.0L550.6 307.0L548.0 307.0L545.5 307.0L542.7 307.0L541.3 307.0L539.7 307.0L537.1 307.0L535.0 307.0L533.1 307.0L531.4 307.0L530.0 307.0L527.7 307.0L526.2 307.0L525.0 307.0L523.6 307.0L521.1 307.0L519.8 307.0L518.3 307.0L519.5 307.0L518.0 307.0L515.0 307.0L513.6 307.0L512.4 307.0L511.0 307.0L513.7 307.0L510.7 307.0L509.5 307.0L507.4 307.0L505.9 307.0L504.0 307.0L500.6 307.0L499.0 307.0L497.0 307.0L495.3 307.0L492.9 307.0L491.5 307.0L486.8 307.0L485.5 307.0L484.0 307.0L480.7 307.0L478.9 307.0L477.6 307.0L475.2 307.0L473.9 307.0L471.8 307.0L469.6 307.0L467.7 307.0L466.5 307.0L465.0 307.0L466.5 307.0L465.1 307.0L463.7 307.0L462.4 307.0L461.0 307.0L458.4 307.0L457.1 307.0L455.8 307.0L454.4 307.0L452.9 307.0L454.5 307.0L453.1 307.0L454.6 307.0L453.0 307.0L451.0 307.0L449.3 307.0L447.7 307.0L446.2 307.0L447.4 307.0L446.0 307.0L447.8 307.0L449.0 307.0L451.0 307.0L452.8 307.0L450.8 307.0L449.3 307.0L447.6 307.0L446.0 307.0L444.8 307.0L443.2 307.0L441.8 307.0L443.8 307.0L445.5 307.0L447.0 307.0L447.5 305.7L448.1 303.5L448.9 301.7L449.6 299.2L449.8 296.9L449.7 294.6L449.5 292.5L449.2 291.2L448.9 289.2L447.5 287.3L448.4 285.7L448.5 283.8L448.7 282.3L448.9 280.8L448.2 279.5L447.7 277.9L446.1 276.8L445.3 274.9L444.4 276.8L444.6 272.9L445.0 269.3L445.8 267.5L447.2 266.3L448.1 264.5L448.4 262.8L449.1 261.5L449.4 260.1L450.0 258.7L451.0 256.5L451.2 255.1L452.2 254.3L454.3 251.5L455.9 249.8L456.2 246.4L456.5 245.1L457.5 242.3L458.2 239.9L459.0 239.0L461.0 237.7L462.3 236.6L463.4 235.0L463.9 233.1L464.7 231.1L465.1 229.6L466.4 227.8L468.9 227.2L471.5 226.4L473.8 225.1L475.2 223.6L476.3 222.3L478.5 220.8L479.5 219.9L481.1 217.7L482.1 215.9L482.9 214.8L483.9 212.7L484.2 211.0L483.4 209.3L483.0 207.6L483.0 206.1L483.2 203.7L483.9 201.7L485.6 199.1L486.2 196.4L488.4 193.4L489.7 191.5L491.3 190.2L495.2 188.4L497.4 187.1L498.8 186.1L499.5 185.0L501.7 180.6L503.8 174.4L504.9 173.4L506.1 173.1L507.4 172.8L507.6 174.8L508.4 175.8L509.8 177.1L510.9 177.6L512.5 177.9L514.4 177.4L515.9 177.1L517.5 177.6L519.3 176.9L520.3 177.9L521.6 178.3L523.8 178.3L525.5 178.4L526.8 177.8L527.8 177.0L529.3 175.6L530.8 174.4L533.4 173.1L534.7 173.4L536.0 172.8L536.5 171.7L538.5 170.4L539.9 169.7L542.5 168.6L546.3 168.2L548.3 168.0L549.6 168.0L551.0 167.1L554.6 166.7L556.0 166.0L561.2 166.0L562.5 166.6L563.6 167.5L564.8 167.5L566.4 166.6L568.2 166.2L569.6 165.0L570.9 165.2L572.8 165.8L574.5 165.5L575.5 164.9L577.5 166.1L579.3 165.9L581.7 165.7L583.0 165.3L584.2 164.2L587.6 162.9L588.4 164.3L589.8 163.5L590.3 165.0L591.1 166.2L592.3 166.1L594.4 164.9L595.3 166.1L594.5 167.0L593.6 168.8L592.1 169.9L592.0 171.9L593.0 173.5L594.7 174.7L594.8 175.9L595.3 177.4L594.4 178.8L593.0 181.3L592.2 182.2L590.4 183.6L589.5 185.0L590.1 187.0L591.7 188.3L593.1 188.1L593.2 189.3L594.4 188.5L595.5 190.3L596.5 191.4L598.2 192.0L601.5 193.8L604.0 194.2L604.0 195.9L604.0 197.6L604.0 199.9L604.0 202.1L604.0 203.7L604.0 205.0L604.0 207.1L604.0 210.6L604.0 208.0L604.0 206.0L604.0 204.5L604.0 202.8L604.0 201.0L604.0 199.7L604.0 198.2L604.0 196.7L604.0 194.4L604.0 196.6L604.0 198.2L604.0 199.5L604.0 201.7L604.0 202.9L604.0 205.1L604.0 207.0L604.0 205.0L604.0 203.8L604.0 202.5L604.0 204.2L604.0 205.5L604.0 203.3L604.0 200.4L604.0 198.4L604.0 195.5L604.0 194.0L604.0 192.2L604.0 191.0L604.0 189.3L604.0 186.8L604.0 184.2L604.0 182.9L604.0 181.6L604.0 180.1L604.0 178.6L604.0 177.0L604.0 175.1L604.0 173.2L604.0 171.1L604.0 169.4L604.0 167.6L604.0 166.3L604.0 167.7L604.0 169.8L604.0 171.2L604.0 169.1L604.0 166.6L604.0 168.5L604.0 170.0L604.0 168.6L604.0 167.2L604.0 165.8L604.0 164.4L604.0 163.2L604.0 161.9L604.0 160.5L604.0 159.2L604.0 158.0L604.0 156.7L604.0 155.3L604.0 154.1L604.0 155.5L604.0 154.1L604.0 152.3L604.0 150.7L604.0 149.5L604.0 147.9L604.0 145.5L604.0 143.3L604.0 141.9L604.0 140.3L604.0 139.0L604.0 137.7L604.0 136.2L604.0 133.7L604.0 132.2L604.0 130.8L604.0 132.3L604.0 134.8L604.0 136.5L604.0 137.7L604.0 136.4L604.0 134.8L604.0 132.9L604.0 131.6L604.0 129.8L604.0 128.1L604.0 126.3L604.0 124.4L604.0 123.1L604.0 121.8L604.0 118.9L604.0 115.1L604.0 112.3L604.0 110.8L604.0 109.3L604.0 107.8L604.0 106.3L604.0 104.7L604.0 103.3L604.0 101.6L604.0 99.6L604.0 98.3L604.0 96.2L604.0 95.0L604.0 97.0L604.0 98.4L604.0 100.7L604.0 101.9L604.0 100.3L604.0 101.6L604.0 103.4L604.0 105.4L604.0 107.1L604.0 108.6L604.0 110.0L604.0 111.5L604.0 113.4L604.0 110.8L604.0 109.5L604.0 107.8L604.0 106.1L604.0 104.4L604.0 103.1L604.0 101.5L604.0 100.1L604.0 98.9L604.0 97.4L604.0 95.8L604.0 98.3L604.0 100.0L604.0 101.5L604.0 102.7L604.0 104.2L604.0 105.5L604.0 107.8L604.0 109.1L604.0 110.8L604.0 112.1L604.0 113.6L604.0 115.0L604.0 117.2L604.0 118.5L604.0 120.5L604.0 122.1L604.0 123.8L604.0 125.7L604.0 127.6L604.0 129.4L604.0 131.1L604.0 132.7L604.0 134.5L604.0 136.0L604.0 137.3L604.0 138.8L604.0 140.7L604.0 142.8L604.0 144.1L604.0 142.5L604.0 140.9L604.0 139.6L604.0 138.1L604.0 139.6L604.0 140.9L604.0 142.4L604.0 143.6L604.0 142.1L604.0 143.6L604.0 144.9L604.0 143.1L604.0 144.9L604.0 143.1L604.0 141.9L604.0 140.5L604.0 142.1L604.0 143.8L604.0 146.0L604.0 147.6L604.0 149.0L604.0 150.3L604.0 151.9L604.0 153.3L604.0 154.8L604.0 156.2L604.0 157.4L604.0 158.7L604.0 159.9L604.0 158.3L604.0 159.8L604.0 161.0L604.0 162.2L604.0 165.2L604.0 166.8L604.0 168.4L604.0 166.7L604.0 168.2L604.0 166.1L604.0 164.7L604.0 163.1L604.0 161.5L604.0 159.9L604.0 158.2L604.0 157.0L604.0 158.5L604.0 157.2L604.0 155.4L604.0 153.9L604.0 152.4L604.0 151.0L604.0 149.7L604.0 147.7L604.0 146.0L604.0 144.3L604.0 142.7L604.0 141.4L604.0 140.0L604.0 138.2L604.0 136.1L604.0 134.8L604.0 133.3L604.0 131.8L604.0 130.4L604.0 129.1L604.0 127.8L604.0 126.5L604.0 125.1L604.0 123.8L604.0 122.5L604.0 121.3L604.0 120.0L604.0 118.4L604.0 115.9L604.0 114.4L604.0 112.9L604.0 111.4L604.0 109.6L604.0 108.1L604.0 110.2L604.0 108.6L604.0 106.9L604.0 104.9L604.0 106.4L602.7 107.0L601.5 107.1L601.2 108.5L602.1 109.9L602.5 111.2L601.3 112.1L601.6 114.1L602.1 115.5L603.7 117.1L604.0 119.2L604.0 121.3L604.0 122.7L604.0 125.0L604.0 127.4L604.0 129.2L604.0 130.5L604.0 132.1L604.0 133.4L604.0 134.7L604.0 136.1L604.0 137.9L604.0 140.1L604.0 142.1L604.0 143.9L604.0 145.3L604.0 142.7L604.0 141.3L604.0 143.7L604.0 145.6L604.0 147.1L604.0 148.9L604.0 150.6L604.0 152.1L604.0 153.5L604.0 155.0L604.0 156.7L604.0 158.3L604.0 156.6L604.0 155.1L604.0 153.8L604.0 151.9L604.0 150.5L604.0 149.1L604.0 147.2L604.0 145.5L604.0 144.2L604.0 143.0L604.0 141.4L604.0 140.0L604.0 138.6L604.0 136.8L604.0 134.9L601.1 132.1L599.0 130.3L598.1 128.9L596.2 127.9L594.3 125.7L593.2 124.6L592.0 124.2L592.1 122.5L591.7 121.4L591.0 120.4L590.6 118.1L589.5 116.9L587.8 116.4L585.5 114.9L583.6 114.3L581.5 114.7L580.1 116.1L579.0 117.6L577.2 118.4L575.9 118.7L574.6 119.2L572.5 120.9L571.4 122.2L569.5 123.0L568.0 123.3L566.1 122.7L564.7 122.4L563.6 121.5L562.4 121.0L560.9 121.4L559.3 120.9L558.0 120.5L556.7 120.1L553.2 122.6L552.1 124.5L552.3 126.8L552.9 127.9L552.7 129.1L553.1 130.3L552.6 131.8L548.1 134.5L547.2 135.5L544.1 136.4L542.2 137.1L540.1 138.5L540.5 139.6L539.3 140.4L537.7 142.4L536.6 143.9L535.3 145.5L534.0 147.9L534.6 151.1L535.5 152.3L536.8 153.2L535.4 154.4L533.7 155.4L532.8 157.0L532.1 158.4L531.3 160.0L531.6 161.2L528.6 161.4L526.9 162.6L526.1 163.7L525.3 165.6L524.4 166.8L522.6 166.4L521.4 167.0L520.2 167.0L518.8 166.9L517.3 167.3L515.2 167.0L512.3 167.2L510.7 168.7L509.3 168.7L508.0 169.2L507.2 170.5L506.4 171.7L504.6 171.5L503.4 170.9L502.7 169.9L502.1 168.5L501.4 167.1L502.2 166.0L500.9 165.6L498.8 163.9L497.3 163.8L496.0 164.0L493.7 165.2L492.1 164.7L490.3 164.6L488.9 164.8L487.5 165.0L488.5 162.3L488.6 160.2L488.1 158.7L488.6 157.1L488.1 155.3L486.5 155.4L486.2 153.9L487.4 153.2L487.8 151.5L487.0 152.6L486.1 153.5L484.9 152.9L485.3 150.7L485.6 149.5L486.7 147.8L487.5 145.8L488.4 143.8L488.7 140.4L489.2 138.3L489.2 136.7L488.6 133.9L488.1 132.5L488.7 131.2L488.1 130.1L489.1 129.0L488.5 127.6L487.6 126.8L487.8 125.6L486.8 124.9L486.2 123.7L487.0 122.5L488.2 121.6L490.0 121.6L491.5 120.9L492.1 119.6L493.6 119.1L495.0 118.9L496.8 119.9L498.8 119.9L500.3 119.9L502.4 119.8L504.4 119.5L507.2 120.1L511.5 121.1L514.2 120.8L515.5 120.7L516.8 120.4L519.4 121.4L521.7 121.1L523.2 121.7L525.0 121.6L527.0 120.9L528.5 116.9L529.1 113.2L529.9 112.3L529.3 109.1L529.6 107.8L529.9 106.5L531.3 107.6L532.0 109.5L531.8 107.5L531.0 106.5L529.5 105.5L529.8 103.8L529.6 101.9L528.7 101.0L526.1 99.7L525.4 98.6L524.5 97.3L524.9 96.1L523.9 95.3L525.4 94.6L523.1 94.5L522.7 93.2L521.4 92.8L520.4 92.2L518.8 91.6L517.5 91.5L514.8 90.6L513.1 90.8L512.0 89.7L510.7 89.3L512.3 88.6L511.4 87.8L513.0 87.4L511.5 87.0L510.3 86.7L511.4 85.3L514.0 84.6L515.8 84.6L517.1 83.9L518.4 83.7L519.6 84.1L520.8 85.4L522.6 85.1L524.6 85.1L525.8 84.9L528.0 85.1L527.3 84.0L527.2 81.2L526.0 79.3L525.8 77.9L527.2 78.0L528.4 77.8L529.1 79.2L530.6 79.9L532.9 80.2L534.8 80.6L536.4 79.9L537.9 79.5L536.4 79.1L536.7 77.8L539.0 76.7L540.7 76.4L542.4 75.8L543.8 74.3L544.2 70.7L545.2 69.3L548.8 68.4L551.6 67.0L553.0 66.4L555.0 66.1L556.5 66.4L557.7 66.4L556.2 66.0L554.9 65.7L555.8 64.8L557.9 65.7L557.2 64.8L556.9 63.3L557.6 62.0L559.2 60.6L560.2 58.9L560.8 56.4L561.9 55.7L564.4 54.4L565.3 53.2L567.2 52.5L569.7 52.2L572.2 52.0L573.5 53.0L573.6 51.8L574.3 50.6L576.6 50.3L578.6 50.3L579.5 51.3L581.0 51.3L581.4 49.7L583.4 49.3L585.0 49.2L587.1 51.0L585.6 49.2L584.3 48.9L583.4 46.4L582.0 46.2L583.0 45.3L582.8 43.4L582.1 41.4L582.1 39.1L580.4 37.8L579.3 37.2L579.5 35.1L579.2 33.5L579.3 32.2L579.4 30.3L581.1 30.5L582.4 30.7L583.3 29.4L584.7 29.3L585.3 27.5L583.9 27.4L582.7 29.4L581.1 29.9L580.0 29.2L580.9 27.6L581.9 26.8L583.7 26.5L585.5 26.5L586.9 25.9L588.3 24.3L590.7 23.3L592.1 22.5L591.7 23.7L592.1 24.9L591.6 26.4L590.9 27.6L590.8 28.8L590.8 30.2L591.9 30.9L593.8 30.8L593.9 32.4L592.6 33.0L591.3 32.7L590.5 34.4L589.4 35.3L588.7 36.4L587.5 37.5L587.4 38.9L586.6 40.5L587.6 41.3L587.9 42.6L589.4 43.6L588.6 44.9L590.1 44.8L591.2 45.2L593.2 46.0L594.4 45.6L594.7 47.0L593.6 47.7L595.2 48.1L596.8 48.6L598.4 47.4L600.6 47.0L601.6 46.3L603.1 45.0L604.0 46.3L604.0 48.1L604.0 49.6L604.0 48.2L604.0 46.5L604.0 45.2L604.0 43.7L604.0 42.4L604.0 43.8L604.0 45.2L604.0 43.8L604.0 42.5L604.0 40.6L604.0 39.3L604.0 38.0L604.0 40.1L604.0 41.4L604.0 39.4L604.0 38.2L604.0 35.7L604.0 34.3L604.0 32.6L604.0 30.1L604.0 28.8L604.0 27.4L604.0 25.9L604.0 23.6L604.0 24.8L604.0 26.9L604.0 25.3L604.0 23.1L604.0 21.6L604.0 19.9L604.0 18.7L604.0 17.2L604.0 15.7L604.0 14.3L604.0 13.0L604.0 11.8L604.0 10.5L604.0 9.3L604.0 7.9L604.0 6.7L604.0 5.5L604.0 3.6L604.0 2.2L604.0 3.5L604.0 4.7L604.0 6.1L604.0 7.4L604.0 5.4L604.0 6.7L604.0 5.5L604.0 4.3L604.0 2.8L604.0 1.0L604.0 -0.4L604.0 -1.9L604.0 -3.3L604.0 -1.9L604.0 0.1L604.0 1.6L604.0 2.9L604.0 4.1L604.0 5.8L604.0 7.3L604.0 8.6L604.0 9.9L604.0 11.3L604.0 12.5L604.0 13.8L604.0 15.3L604.0 16.5L604.0 18.6L604.0 21.2L604.0 23.1L604.0 24.6L604.0 26.3L604.0 28.0L604.0 29.5L604.0 31.0L604.0 32.9L604.0 34.2L604.0 35.6L604.0 36.9L604.0 38.6L604.0 37.1L604.0 35.8L603.2 33.5L602.5 32.4L603.8 32.8L603.5 31.4L604.0 30.2L603.1 28.8L600.8 26.0L600.3 24.5L599.4 23.3L598.6 22.3L598.4 20.8L597.1 19.8L597.0 18.3L596.1 17.4L595.8 16.0L595.8 14.7L595.5 13.5L594.6 12.6L593.3 11.7L592.7 9.6L591.4 10.2L591.6 11.8L590.6 13.4L589.1 14.0L587.3 13.0L586.9 14.2L585.6 14.8L584.9 16.0L583.6 16.7L581.4 18.6L580.2 19.1L578.8 19.6L575.7 20.5L574.3 20.3L572.7 20.2L571.0 20.0L570.5 18.9L568.1 18.1L566.3 17.1L565.3 15.7L565.5 13.9L567.1 14.1L568.4 14.7L569.8 13.8L568.4 14.1L567.3 13.4L567.5 12.2L568.9 10.8L570.1 10.0L568.7 10.4L567.0 11.3L565.5 11.8L564.4 12.6L563.2 12.2L563.5 10.6L564.1 9.3L565.3 8.9L566.6 9.2L567.8 8.6L569.0 8.1L567.7 8.2L566.4 7.8L567.8 6.7L568.6 5.3L569.7 4.5L570.7 5.4L571.4 4.4L572.9 3.6L569.7 4.0L568.4 4.9L567.4 5.8L566.2 6.8L565.2 8.1L563.9 8.9L563.5 7.5L563.6 6.3L565.2 6.4L564.0 5.5L563.2 3.8L565.4 2.6L563.8 3.0L562.8 2.0L562.6 0.4L563.5 -0.4L565.2 -0.4L567.8 -0.8L569.4 -0.6L571.1 -0.9L572.7 -0.7L573.4 0.3L576.1 -1.2L575.1 -2.1L574.1 -1.1L572.9 -1.1L571.4 -1.4L569.9 -0.9L568.3 -1.1L566.0 -1.0L564.2 -0.7L563.1 -1.3L562.5 -2.6L563.9 -3.1L563.0 -4.0L565.0 -4.0L566.8 -4.0L570.4 -4.0L571.8 -4.0L570.0 -4.0L568.6 -4.0L566.1 -4.0L563.9 -4.0L565.4 -4.0L566.8 -4.0L568.0 -4.0L571.0 -4.0L569.3 -4.0L571.2 -4.0L573.0 -4.0L574.7 -4.0L576.3 -4.0L577.5 -4.0L579.1 -4.0L575.4 -4.0L573.8 -4.0L572.0 -4.0L573.3 -4.0L575.3 -4.0L576.7 -4.0L579.1 -4.0L581.9 -4.0L580.4 -4.0L581.7 -4.0L583.1 -4.0L584.7 -4.0L586.7 -4.0L588.4 -4.0L589.7 -4.0L591.1 -4.0L592.4 -4.0L594.4 -4.0L595.9 -4.0L597.1 -4.0L595.8 -4.0L594.2 -4.0L591.1 -4.0L589.6 -4.0L588.0 -4.0L589.3 -4.0L590.6 -4.0L592.3 -4.0L593.8 -4.0L595.1 -4.0L596.4 -4.0L598.0 -4.0L596.7 -4.0L600.9 -4.0L602.7 -4.0L604.0 -4.0L602.7 -4.0L601.4 -4.0L603.4 -4.0L-4.0 -4.0ZM502.5 18.2L501.8 19.4L500.6 20.0L499.9 21.3L498.7 22.2L498.2 20.8L497.7 19.7L499.2 19.3L500.7 18.0L502.0 17.3ZM502.8 24.1L502.8 25.4L504.2 25.7L504.0 27.1L502.7 26.3L501.2 25.3L499.9 25.0L500.3 23.7L501.5 23.4L502.8 24.1ZM119.2 249.9L119.3 251.4L118.0 252.5L117.1 251.4L115.9 251.0L116.3 249.6L116.9 248.5L116.7 246.6L118.0 247.3L118.7 249.3ZM93.4 271.5L91.9 272.4L90.3 271.8L90.6 270.0L92.4 269.2L93.4 271.2ZM30.5 -4.0L33.2 -4.0L34.4 -4.0L36.1 -4.0L37.3 -4.0L38.7 -4.0L40.8 -4.0L42.6 -4.0L43.8 -4.0L45.2 -4.0L43.6 -4.0L42.2 -4.0L40.9 -4.0L42.2 -4.0L38.8 -4.0L40.2 -4.0L41.6 -4.0L43.3 -4.0L45.4 -4.0L47.1 -4.0L45.9 -4.0L48.5 -4.0L50.0 -4.0L51.3 -4.0L49.9 -4.0L48.2 -4.0L46.9 -4.0L49.6 -4.0L51.0 -4.0L52.2 -4.0L53.5 -4.0L54.9 -4.0L57.0 -4.0L58.6 -4.0L59.9 -4.0L62.6 -4.0L64.1 -4.0L65.3 -4.0L63.7 -4.0L62.4 -4.0L64.3 -4.0L67.0 -4.0L68.2 -4.0L70.0 -4.0L71.3 -4.0L72.9 -4.0L75.1 -4.0L76.4 -4.0L77.7 -4.0L81.1 -4.0L79.8 -4.0L81.1 -4.0L79.7 -4.0L78.3 -4.0L80.2 -4.0L82.3 -4.0L84.0 -4.0L86.2 -4.0L87.5 -4.0L91.1 -4.0L92.4 -4.0L94.4 -4.0L93.0 -4.0L94.8 -4.0L96.7 -4.0L99.6 -4.0L97.7 -4.0L99.2 -4.0L100.4 -4.0L99.0 -4.0L97.3 -4.0L95.9 -4.0L94.3 -4.0L95.6 -4.0L97.1 -4.0L99.1 -4.0L97.9 -4.0L96.4 -4.0L95.0 -4.0L93.5 -4.0L91.3 -4.0L90.0 -4.0L88.3 -4.0L86.2 -4.0L84.9 -4.0L83.2 -4.0L82.0 -4.0L80.2 -4.0L81.8 -4.0L84.0 -4.0L85.9 -4.0L84.1 -4.0L82.4 -4.0L80.8 -4.0L79.3 -4.0L78.0 -4.0L76.1 -4.0L74.7 -4.0L71.6 -4.0L73.4 -4.0L75.0 -4.0L71.2 -4.0L69.9 -4.0L68.6 -4.0L67.2 -4.0L64.5 -4.0L62.2 -4.0L60.7 -4.0L59.2 -4.0L56.7 -4.0L54.9 -4.0L53.6 -4.0L51.9 -4.0L50.1 -4.0L48.2 -4.0L46.6 -4.0L48.0 -4.0L50.4 -4.0L52.7 -4.0L54.0 -4.0L55.7 -4.0L57.6 -4.0L59.1 -4.0L63.2 -4.0L64.7 -4.0L67.5 -4.0L69.1 -4.0L64.9 -4.0L62.3 -4.0L60.8 -4.0L59.1 -4.0L57.9 -4.0L56.4 -4.0L55.0 -4.0L53.3 -4.0L51.6 -4.0L50.4 -4.0L48.5 -4.0L45.3 -4.0L43.3 -4.0L41.8 -4.0L39.9 -4.0L37.7 -4.0L35.2 -4.0L33.8 -4.0L35.3 -4.0L36.6 -4.0L40.0 -4.0L41.8 -4.0L40.4 -4.0L42.4 -4.0L43.7 -4.0L45.6 -4.0L47.7 -4.0L49.6 -4.0L48.2 -4.0L46.3 -4.0L43.5 -4.0L42.3 -4.0L40.9 -4.0L43.1 -4.0L41.8 -4.0L40.2 -4.0L38.7 -4.0L40.0 -4.0L38.2 -4.0L36.7 -4.0L38.0 -4.0L36.6 -4.0L34.4 -4.0L35.8 -4.0L33.7 -4.0L32.6 -3.3L32.5 -2.1L31.8 -1.0L30.5 0.9L29.4 2.7L28.1 3.5L28.5 4.8L28.2 6.1L28.0 10.5L27.9 11.9L27.5 13.2L28.3 14.4L29.9 15.5L30.4 18.3L31.0 16.3L31.8 15.4L33.3 15.3L34.9 15.5L36.5 15.7L37.0 17.3L37.9 19.1L38.9 21.7L40.2 24.3L40.5 25.7L39.9 26.8L38.9 27.9L40.1 27.4L41.5 27.5L42.8 27.1L47.6 25.9L50.4 26.0L51.7 26.5L53.2 27.2L54.7 27.7L57.1 28.1L59.2 28.6L60.6 29.4L61.9 30.2L63.9 31.2L64.9 32.1L66.6 34.0L68.1 34.6L70.1 35.0L73.0 36.0L74.3 36.4L75.9 36.8L77.4 37.6L78.8 38.7L78.4 40.7L79.7 39.5L81.9 39.5L83.8 39.4L85.1 39.3L87.5 39.5L89.9 39.8L91.1 39.7L92.7 40.2L94.3 40.8L95.2 42.3L94.4 44.9L94.2 46.5L95.0 47.7L95.6 49.0L95.4 50.9L95.6 52.6L95.0 54.0L95.0 55.4L96.3 56.4L97.2 57.5L98.6 59.0L97.6 60.2L98.8 60.3L100.3 61.4L101.9 62.2L103.4 63.4L104.5 65.2L104.5 66.5L102.6 68.0L104.6 66.8L106.6 66.9L108.0 67.7L109.0 68.8L110.1 69.7L109.1 68.5L108.6 67.1L109.1 66.0L109.8 64.9L111.1 65.1L112.3 65.7L112.8 67.1L113.4 65.9L112.6 63.8L113.2 62.6L114.1 61.8L115.0 60.5L115.0 59.2L114.0 57.7L113.8 56.4L113.3 55.3L112.8 53.7L112.5 52.3L112.0 50.6L112.5 49.3L112.5 48.0L111.2 47.5L110.6 46.4L109.7 44.8L108.9 43.8L113.0 42.1L115.3 41.2L117.2 40.3L118.4 39.7L119.5 38.9L121.5 37.5L122.8 36.1L124.5 34.5L125.3 33.1L125.7 31.0L125.8 29.6L125.8 28.3L125.5 26.3L125.1 24.9L124.4 23.4L123.8 22.3L122.4 20.5L120.6 19.3L119.6 18.6L117.8 17.9L116.0 16.7L115.2 15.4L116.5 13.5L117.5 12.4L118.7 11.7L119.2 9.9L120.1 9.1L121.1 9.8L121.4 8.3L121.7 6.7L120.3 6.5L119.7 4.4L120.5 3.2L119.0 2.5L119.7 1.4L117.9 1.3L118.2 -0.0L119.1 -1.1L119.2 -2.7L120.5 -3.8L118.9 -4.0L117.5 -4.0L120.0 -4.0L121.2 -4.0L123.9 -4.0L125.3 -4.0L129.5 -4.0L131.3 -4.0L133.3 -4.0L135.9 -4.0L138.2 -4.0L139.9 -4.0L141.3 -4.0L143.0 -4.0L144.4 -4.0L146.1 -4.0L147.3 -4.0L148.8 -4.0L150.2 -4.0L151.9 -4.0L150.9 -3.2L152.4 -1.5L154.4 -1.0L156.8 -0.4L158.7 -0.4L159.9 -0.1L160.7 1.0L162.3 0.6L163.1 -0.4L163.9 0.5L163.0 1.8L162.2 3.0L162.0 4.2L162.7 5.4L161.8 6.7L158.0 6.8L161.8 7.3L162.7 8.1L162.9 9.5L162.3 11.1L163.9 11.5L163.6 12.7L163.4 14.3L162.0 14.2L160.8 15.0L161.8 15.9L164.0 14.8L165.7 14.5L167.7 14.4L168.9 15.0L169.7 16.6L170.2 17.9L169.7 19.1L168.9 20.1L167.0 20.7L165.9 21.2L167.2 20.8L168.8 20.6L169.9 19.4L170.5 17.9L172.0 18.4L171.1 19.7L172.2 18.8L173.1 19.7L174.7 18.6L175.9 18.1L177.3 17.5L178.9 16.9L179.6 15.6L180.9 15.3L181.9 16.5L182.1 17.7L182.5 16.4L181.9 15.2L183.0 14.7L183.6 13.6L185.4 13.5L184.3 13.0L184.6 11.6L185.6 10.5L187.1 11.2L186.1 10.4L185.0 9.5L185.3 8.3L187.2 8.6L186.6 7.5L187.9 5.2L189.1 4.6L190.5 5.3L189.0 6.6L190.7 6.4L191.9 7.1L191.6 8.7L193.0 8.6L193.7 9.8L193.0 11.0L194.2 11.6L196.0 12.4L194.7 13.2L193.3 13.3L195.2 13.4L196.5 13.2L197.1 14.3L198.2 14.8L198.9 16.0L197.7 16.9L196.1 17.5L197.4 17.5L199.1 17.4L200.3 17.2L200.0 18.5L197.9 19.8L196.8 20.6L198.3 20.0L200.4 19.6L201.9 20.8L203.8 21.3L203.9 22.9L202.7 23.8L200.9 24.2L202.5 24.4L204.0 24.6L203.7 25.8L205.1 26.2L207.1 27.5L206.9 29.1L203.2 29.6L201.6 29.2L202.9 29.8L204.4 30.4L203.5 31.3L205.2 31.7L206.6 32.0L205.1 32.4L206.7 32.9L207.3 34.1L208.2 34.9L209.5 35.0L210.9 35.6L212.5 35.9L212.6 37.5L212.4 38.8L211.9 39.9L211.0 40.9L212.5 40.0L214.7 39.5L215.9 39.5L217.3 40.1L215.7 41.7L217.4 40.9L218.3 39.9L219.7 40.3L220.2 41.6L222.3 42.8L223.8 42.6L225.2 42.2L225.9 43.3L227.8 43.8L227.3 45.2L225.6 45.6L224.2 45.8L223.1 46.5L222.0 47.5L220.5 47.9L218.6 48.7L217.0 49.3L215.6 49.3L214.2 49.8L213.5 51.0L212.2 50.6L213.4 51.4L212.6 52.6L214.4 52.4L216.3 51.4L217.9 50.7L219.0 50.0L220.1 49.1L221.5 48.4L223.3 47.9L224.5 47.6L223.3 47.4L227.1 46.9L229.3 48.7L229.1 50.2L227.7 50.7L228.6 51.9L230.3 50.5L232.0 49.9L233.2 49.8L234.3 51.0L235.9 51.8L236.4 52.9L236.7 54.2L236.6 55.9L236.7 57.3L234.8 58.0L236.6 58.5L235.7 59.4L236.9 60.0L235.6 62.5L234.2 63.4L232.8 64.2L230.5 65.7L228.8 65.6L226.2 65.9L224.9 66.6L223.5 66.8L222.3 66.8L219.4 69.7L217.6 71.1L216.4 72.4L215.3 72.9L213.9 74.0L211.9 74.1L210.0 74.0L208.0 74.4L205.0 75.0L204.0 74.1L202.7 74.1L200.7 73.8L199.1 73.7L197.5 73.7L195.1 74.0L193.6 73.6L192.0 73.9L190.1 73.6L188.2 73.9L186.5 73.7L183.4 74.0L181.5 74.4L180.2 74.3L178.8 74.7L177.1 75.8L175.5 78.5L174.8 80.2L171.1 80.9L169.9 81.3L168.5 82.2L166.5 83.8L164.8 85.6L164.1 86.9L163.1 87.8L162.0 88.2L160.7 87.7L158.7 87.0L155.3 86.4L157.1 87.1L159.9 87.8L161.4 88.3L161.6 89.8L160.7 91.3L159.1 92.9L156.9 95.4L155.5 96.4L153.9 97.8L152.0 98.5L150.6 98.6L148.9 99.4L146.4 101.3L144.7 101.9L143.9 102.8L143.1 104.0L142.1 105.1L140.8 105.3L139.8 106.3L137.6 106.5L139.3 107.2L137.4 108.8L135.5 110.2L137.8 108.9L139.0 108.5L140.6 107.5L141.9 107.0L142.2 105.8L143.3 104.2L144.7 102.6L146.1 102.0L147.3 100.9L148.7 100.3L150.5 98.9L151.8 98.8L153.0 98.3L154.5 97.7L157.9 96.2L159.6 94.4L160.6 93.2L161.8 92.1L163.0 90.7L164.4 89.2L166.1 87.6L167.4 86.9L169.1 85.8L172.0 84.5L173.8 83.6L176.2 82.9L178.9 81.8L181.2 81.2L182.8 81.1L184.7 80.8L188.4 81.3L189.8 81.9L191.5 83.2L190.1 83.7L191.5 84.8L191.0 86.6L189.5 87.0L188.5 88.2L187.3 88.8L186.1 89.4L183.4 88.7L182.1 88.5L180.8 88.7L178.4 89.4L179.8 89.1L181.0 89.6L182.9 90.1L183.9 91.6L185.7 91.1L187.5 90.6L189.1 91.4L188.3 92.5L188.0 93.9L187.0 94.8L185.8 95.7L187.3 95.8L188.2 96.7L188.5 98.5L189.2 99.8L189.9 101.1L191.7 101.8L193.3 102.2L192.6 103.1L194.4 104.3L196.3 104.6L197.6 104.8L199.8 105.1L201.0 105.9L202.4 105.2L203.8 104.2L204.8 105.7L206.3 105.5L207.4 106.9L206.5 107.7L208.4 107.8L207.4 108.6L206.3 109.1L205.1 109.5L203.4 110.2L202.2 110.6L200.8 111.3L199.5 111.7L198.0 112.1L196.6 112.6L195.3 112.6L194.9 113.8L193.4 113.3L192.0 113.0L191.0 114.0L190.4 115.8L189.2 116.9L188.2 118.0L187.0 118.9L185.7 119.4L184.9 120.4L183.5 120.1L183.0 118.9L181.5 118.3L181.1 116.5L181.6 114.5L182.8 113.1L181.4 114.1L182.6 112.8L183.9 112.6L184.8 111.8L183.6 112.3L188.0 109.3L190.4 108.4L191.6 109.4L194.2 108.0L195.8 108.0L193.4 107.6L191.0 107.5L189.6 107.4L188.4 107.8L189.9 105.9L190.7 105.0L189.5 103.7L188.7 105.8L187.2 106.4L186.0 106.9L184.6 107.9L182.8 108.6L181.6 108.0L180.3 109.3L178.4 109.6L177.2 109.2L176.4 110.3L176.9 111.4L175.8 112.4L174.3 112.6L173.3 113.2L171.9 113.9L170.6 113.6L169.4 114.0L168.7 115.0L167.1 114.7L167.3 113.1L166.3 114.1L165.7 115.9L164.9 117.2L163.5 117.7L162.3 117.4L161.7 118.6L160.4 118.2L159.3 119.3L158.8 120.6L157.9 121.6L157.3 123.0L156.5 124.4L156.5 125.9L156.3 127.0L155.1 128.6L156.3 129.0L157.4 130.6L158.0 132.2L159.1 132.7L160.7 132.0L160.1 130.6L161.0 132.2L158.5 133.4L157.2 134.0L157.1 132.8L155.5 134.0L154.3 133.3L153.4 132.3L153.0 134.6L151.2 135.4L149.6 135.5L148.0 135.6L145.5 135.9L143.7 136.5L141.5 137.6L140.5 138.6L139.4 139.4L140.0 137.3L139.5 136.0L139.8 137.8L139.1 139.4L138.1 140.4L139.0 141.6L139.4 142.9L139.1 144.1L138.9 146.1L138.9 144.7L138.3 146.5L137.5 147.8L136.7 149.1L135.8 150.1L135.0 151.5L134.1 150.2L132.7 149.5L131.1 148.1L131.4 146.6L133.1 145.5L131.8 145.8L130.8 147.1L131.1 148.7L131.8 150.9L132.9 152.7L133.2 154.0L133.7 155.4L133.1 156.6L132.0 157.9L130.7 160.9L129.8 162.0L129.4 163.2L129.2 161.0L130.1 159.6L129.4 158.6L129.2 157.4L129.3 155.9L127.9 156.2L127.0 155.0L128.0 154.2L127.4 153.2L127.3 151.9L127.9 150.7L127.7 149.3L129.2 148.9L128.8 147.5L128.1 148.5L127.1 149.3L125.5 149.6L126.3 150.6L125.9 151.9L125.7 153.3L125.9 154.7L126.5 155.8L125.1 154.7L126.4 156.5L126.7 157.8L125.4 156.8L123.9 155.7L122.4 155.6L122.5 153.9L123.0 152.3L122.7 153.4L121.8 154.2L121.5 155.7L123.0 155.9L123.7 157.0L125.1 157.5L126.1 158.3L127.2 159.1L126.9 160.3L124.3 158.8L123.5 157.7L124.7 159.7L125.6 160.7L126.9 161.3L127.2 162.8L125.7 163.1L124.5 161.8L125.3 163.0L126.4 163.8L127.1 164.9L125.9 164.8L125.2 163.7L123.2 163.1L121.9 163.0L123.2 163.4L124.5 164.0L125.9 165.5L127.3 165.6L128.6 165.9L129.2 167.6L129.9 170.6L130.9 173.0L130.0 171.4L129.6 170.3L129.1 168.3L129.0 169.5L129.5 171.4L128.3 170.5L127.3 171.4L126.0 172.0L124.7 171.1L124.7 172.4L126.7 172.5L128.2 172.4L128.2 173.6L129.4 172.4L129.9 173.8L128.8 175.5L127.6 176.6L126.5 176.3L125.5 175.4L123.8 175.9L125.4 176.8L125.3 178.0L124.4 179.1L122.8 178.0L123.8 179.2L126.1 179.1L125.8 180.6L124.6 181.1L122.9 181.1L121.9 181.7L120.4 182.8L119.5 183.6L118.6 184.9L118.2 186.3L118.1 184.8L118.0 186.0L115.7 186.5L113.3 187.8L111.8 190.0L111.3 191.5L110.3 192.5L109.2 193.4L108.2 194.3L107.0 195.4L105.7 196.0L104.1 196.0L104.5 197.3L103.3 197.4L103.1 198.7L102.2 200.1L101.4 201.2L100.9 202.4L100.4 203.6L99.8 205.4L99.3 206.5L99.0 208.0L99.7 211.6L100.4 214.9L101.2 217.2L102.3 220.0L104.1 223.4L104.0 224.7L104.1 226.0L104.7 227.9L103.9 226.0L103.9 223.6L103.4 224.9L103.4 223.3L102.8 222.0L102.9 223.4L103.1 224.6L103.7 226.0L105.9 232.7L106.7 234.2L106.9 235.5L106.9 237.1L106.6 240.1L106.5 242.2L105.5 243.6L105.4 245.0L104.5 246.3L103.2 246.8L101.7 247.0L100.9 246.1L100.6 243.9L99.8 242.2L98.0 241.1L97.4 240.0L97.1 238.0L97.4 236.3L96.6 237.2L96.1 234.9L94.9 235.0L94.1 233.7L93.1 231.4L93.6 229.5L94.3 228.4L93.3 227.5L93.2 228.8L91.9 228.3L92.4 225.6L92.9 223.9L92.9 221.9L92.3 220.0L89.5 217.3L87.3 214.0L85.5 212.8L84.0 213.0L83.3 214.1L81.4 215.0L80.2 215.4L78.6 215.7L78.1 214.6L76.7 212.6L74.1 211.2L72.6 210.7L74.3 210.7L73.0 210.2L71.8 210.6L69.8 210.9L68.6 211.1L69.7 210.5L68.7 209.8L68.1 211.1L66.9 210.9L64.3 211.9L65.4 211.5L64.7 210.4L64.6 209.2L63.7 210.6L62.4 210.9L60.6 211.0L59.4 210.6L57.7 211.2L56.5 211.9L53.8 211.6L52.4 210.9L51.4 212.5L52.6 213.3L54.1 212.6L55.4 212.5L54.6 213.4L55.5 214.1L56.3 213.1L57.0 214.6L55.8 215.4L55.3 216.7L57.6 218.1L58.6 218.9L58.2 220.0L56.9 220.5L56.5 219.0L55.6 218.3L54.5 217.5L52.7 216.7L53.3 218.0L52.8 219.4L52.0 218.6L50.4 218.5L49.5 219.5L48.2 219.0L46.7 218.4L46.8 216.9L45.5 216.5L44.6 215.2L43.4 214.6L42.1 215.5L41.5 216.5L39.3 216.2L37.8 215.4L36.6 215.0L33.8 215.1L33.4 213.8L32.4 214.8L31.6 215.7L29.1 217.0L28.1 217.7L29.3 216.6L28.0 216.6L28.2 215.2L26.9 215.5L26.8 216.7L27.4 217.8L26.0 219.2L25.3 220.6L23.3 222.1L22.2 222.8L20.5 223.8L21.4 222.9L20.0 222.7L18.6 222.8L19.2 224.1L17.8 224.9L16.9 225.9L15.6 226.2L15.2 228.1L13.9 228.2L14.5 229.5L14.0 231.3L12.4 231.4L13.5 232.5L13.3 233.8L13.4 235.8L13.7 237.7L14.9 240.6L15.2 242.7L14.9 243.9L13.8 246.3L13.3 247.8L12.5 252.1L12.2 254.9L12.2 256.3L12.0 259.6L12.1 262.1L11.5 264.3L11.9 266.6L12.9 269.9L14.1 271.2L14.3 272.4L13.9 273.6L13.8 272.3L12.9 270.2L12.0 268.4L12.7 271.3L13.4 272.5L14.2 274.7L15.0 276.8L15.4 278.1L17.6 281.0L19.0 283.2L19.5 285.3L19.9 286.9L20.8 287.9L21.5 288.9L22.6 290.6L23.7 291.4L25.8 291.3L26.7 292.2L27.9 292.6L28.5 293.7L29.2 294.9L31.1 294.8L32.8 294.0L34.5 293.2L36.3 293.1L38.1 292.9L39.1 291.9L40.2 291.5L41.7 291.4L43.0 291.2L43.3 292.5L45.0 293.0L46.7 291.8L46.2 290.6L47.5 289.0L48.4 288.2L49.6 286.8L49.9 284.2L50.9 282.9L51.0 280.8L51.0 278.5L51.2 277.1L51.7 275.4L54.2 273.7L59.6 272.6L61.2 271.7L62.9 271.5L64.2 271.3L65.5 271.7L67.1 272.2L68.3 272.4L68.9 271.2L70.1 272.3L70.6 273.8L70.6 275.4L70.0 276.9L69.3 278.0L68.5 278.8L67.4 280.7L67.2 282.3L67.2 283.6L66.0 284.8L67.1 285.2L66.6 286.4L66.5 288.9L66.2 290.6L65.6 293.0L65.1 294.3L64.5 293.1L64.2 291.1L62.8 292.6L63.6 293.7L63.8 295.3L63.2 297.2L62.8 298.8L62.9 300.3L62.7 301.7L62.9 303.3L62.6 305.5L61.8 306.9L60.6 307.0L63.1 307.0L64.8 307.0L66.3 307.0L67.6 307.0L70.1 307.0L72.4 307.0L74.0 307.0L75.4 307.0L77.8 307.0L79.5 307.0L82.3 307.0L84.3 307.0L86.9 307.0L85.3 307.0L86.8 307.0L88.2 307.0L89.5 307.0L88.0 307.0L86.7 307.0L87.9 307.0L89.2 307.0L90.9 307.0L92.3 307.0L93.7 307.0L95.0 307.0L97.0 307.0L98.9 307.0L100.7 307.0L102.7 307.0L104.2 307.0L106.5 307.0L107.9 307.0L109.4 307.0L111.4 307.0L112.6 307.0L114.1 307.0L117.4 307.0L118.8 307.0L121.2 307.0L122.5 307.0L123.8 307.0L127.1 307.0L128.4 307.0L129.9 307.0L131.3 307.0L132.6 307.0L134.3 307.0L136.9 307.0L138.1 307.0L139.8 307.0L141.0 307.0L143.0 307.0L146.1 307.0L147.6 307.0L149.1 307.0L150.4 307.0L152.2 307.0L154.0 307.0L152.7 307.0L150.7 307.0L151.9 307.0L150.6 307.0L149.4 307.0L150.7 307.0L152.0 307.0L153.8 307.0L155.1 307.0L153.3 307.0L156.3 307.0L157.8 307.0L159.5 307.0L161.3 307.0L159.7 307.0L161.2 307.0L162.7 307.0L164.8 307.0L167.0 307.0L169.3 307.0L170.7 307.0L172.1 307.0L173.7 307.0L176.1 307.0L180.8 307.0L182.9 307.0L184.9 307.0L186.8 307.0L188.3 307.0L191.9 307.0L193.7 307.0L192.0 307.0L193.5 307.0L195.6 307.0L197.2 307.0L198.5 307.0L199.8 307.0L202.3 307.0L204.2 307.0L202.3 307.0L199.9 307.0L201.4 307.0L202.7 307.0L204.1 307.0L205.6 307.0L207.3 307.0L208.9 307.0L207.6 307.0L205.6 307.0L207.3 307.0L208.7 307.0L210.0 307.0L211.7 307.0L213.4 307.0L215.2 307.0L217.1 307.0L218.6 307.0L220.7 307.0L222.3 307.0L224.1 307.0L226.1 307.0L227.5 307.0L229.1 307.0L230.5 307.0L233.2 307.0L234.5 307.0L236.0 307.0L237.6 307.0L239.0 307.0L240.3 307.0L242.0 307.0L244.5 307.0L246.1 307.0L249.3 307.0L252.3 307.0L254.7 307.0L256.0 307.0L257.4 307.0L258.8 307.0L260.0 307.0L261.3 307.0L262.5 307.0L263.9 307.0L265.4 307.0L266.9 307.0L268.1 307.0L266.3 307.0L264.7 307.0L263.5 307.0L262.0 307.0L260.3 307.0L258.7 307.0L257.5 307.0L255.9 307.0L254.2 307.0L255.5 307.0L257.4 307.0L259.0 307.0L260.9 307.0L262.3 307.0L263.6 307.0L265.7 307.0L266.9 307.0L268.4 307.0L270.1 307.0L271.5 307.0L270.3 307.0L272.1 307.0L274.8 307.0L276.1 307.0L277.5 307.0L278.8 307.0L280.0 307.0L281.4 307.0L282.8 307.0L284.2 307.0L285.8 307.0L287.6 307.0L289.0 307.0L290.5 307.0L292.2 307.0L293.7 307.0L295.1 307.0L296.5 307.0L297.9 307.0L296.6 307.0L298.0 307.0L299.4 307.0L300.7 307.0L302.9 307.0L305.7 307.0L307.1 307.0L309.4 307.0L310.7 307.0L312.2 307.0L313.5 307.0L315.0 307.0L316.7 307.0L318.9 307.0L320.2 307.0L321.6 307.0L323.5 307.0L324.9 307.0L326.7 307.0L328.5 307.0L330.2 307.0L331.9 307.0L333.2 307.0L335.9 307.0L337.7 307.0L339.7 307.0L342.0 307.0L345.3 307.0L347.0 307.0L348.3 307.0L346.4 307.0L345.0 307.0L343.8 307.0L342.6 307.0L340.7 307.0L339.5 307.0L337.8 307.0L336.5 307.0L335.2 307.0L333.8 307.0L332.4 307.0L330.8 307.0L329.5 307.0L328.1 307.0L326.6 307.0L325.3 307.0L323.3 307.0L321.4 307.0L319.8 307.0L318.2 307.0L317.0 307.0L315.4 307.0L313.0 307.0L310.8 307.0L307.6 307.0L306.3 307.0L304.9 307.0L303.4 307.0L301.4 307.0L300.1 307.0L301.7 307.0L299.7 307.0L298.0 307.0L296.6 307.0L294.9 307.0L293.5 307.0L292.2 307.0L290.1 307.0L285.9 307.0L284.6 307.0L283.2 307.0L280.8 307.0L279.5 307.0L277.5 307.0L276.1 307.0L274.7 307.0L276.3 307.0L275.0 307.0L273.1 307.0L271.8 307.0L270.5 307.0L269.2 307.0L267.7 307.0L266.3 307.0L264.5 307.0L262.9 307.0L261.7 307.0L260.0 307.0L258.2 307.0L256.9 307.0L258.2 307.0L260.1 307.0L261.6 307.0L262.8 307.0L264.2 307.0L262.9 307.0L261.5 307.0L260.0 307.0L258.7 307.0L257.3 307.0L255.7 307.0L254.4 307.0L253.1 307.0L249.8 307.0L247.8 307.0L246.4 307.0L245.0 307.0L241.6 307.0L239.8 307.0L237.5 307.0L235.1 307.0L233.6 307.0L231.1 307.0L229.4 307.0L227.4 307.0L225.9 307.0L223.9 307.0L222.7 307.0L224.2 307.0L222.7 307.0L226.3 307.0L228.7 307.0L229.9 307.0L231.7 307.0L229.9 307.0L228.2 307.0L226.9 307.0L224.0 307.0L219.6 307.0L216.0 307.0L209.4 307.0L206.9 307.0L204.4 307.0L202.6 307.0L201.3 307.0L199.3 307.0L197.1 307.0L194.9 307.0L192.2 307.0L190.8 307.0L189.5 307.0L188.3 307.0L186.8 307.0L188.0 307.0L189.5 307.0L191.4 307.0L193.4 307.0L194.8 307.0L192.7 307.0L191.1 307.0L189.4 307.0L187.7 307.0L189.5 307.0L190.8 307.0L189.0 307.0L187.6 307.0L186.1 307.0L184.0 307.0L181.1 307.0L179.5 307.0L177.4 307.0L175.4 307.0L173.8 307.0L178.0 307.0L182.2 307.0L183.4 307.0L181.9 307.0L183.2 307.0L180.0 307.0L178.0 307.0L176.6 307.0L175.4 307.0L173.1 307.0L171.9 307.0L170.6 307.0L169.3 307.0L167.8 307.0L166.5 307.0L168.2 307.0L166.4 307.0L164.8 307.0L163.6 307.0L165.1 307.0L166.5 307.0L167.7 307.0L169.3 307.0L166.0 307.0L164.8 307.0L163.1 307.0L161.2 307.0L158.6 307.0L157.1 307.0L155.6 307.0L153.8 307.0L151.6 307.0L149.5 307.0L148.0 307.0L149.6 307.0L150.8 307.0L153.2 307.0L154.5 307.0L150.5 307.0L149.3 307.0L147.5 307.0L146.1 307.0L144.6 307.0L146.1 307.0L147.6 307.0L149.4 307.0L151.1 307.0L152.4 307.0L151.0 307.0L148.8 307.0L147.4 307.0L146.2 307.0L144.5 307.0L142.8 307.0L141.2 307.0L142.8 307.0L144.3 307.0L142.6 307.0L140.8 307.0L139.2 307.0L137.9 307.0L139.1 307.0L140.6 307.0L142.2 307.0L143.9 307.0L145.5 307.0L146.8 307.0L144.0 307.0L145.8 307.0L143.6 307.0L141.9 307.0L140.6 307.0L138.5 307.0L139.8 307.0L138.6 307.0L137.1 307.0L135.6 307.0L134.0 307.0L135.6 307.0L137.3 307.0L140.1 307.0L141.3 307.0L139.9 307.0L138.4 307.0L137.0 307.0L139.2 307.0L137.5 307.0L139.5 307.0L138.3 307.0L136.7 307.0L138.0 307.0L140.1 307.0L141.8 307.0L140.5 307.0L138.8 307.0L137.4 307.0L136.0 307.0L137.6 307.0L135.6 307.0L133.9 307.0L132.1 307.0L130.9 307.0L132.6 307.0L134.3 307.0L135.9 307.0L137.3 307.0L138.8 307.0L140.2 307.0L139.0 307.0L137.4 307.0L138.8 307.0L140.3 307.0L141.7 307.0L143.2 307.0L144.8 307.0L143.4 307.0L146.0 307.0L144.6 307.0L143.2 307.0L144.7 307.0L145.9 307.0L147.7 307.0L146.1 307.0L147.4 307.0L145.7 307.0L143.7 307.0L141.8 307.0L140.3 307.0L142.1 307.0L143.3 307.0L142.1 307.0L143.5 307.0L144.8 307.0L146.3 307.0L147.6 307.0L148.8 307.0L150.0 307.0L151.8 307.0L153.1 307.0L151.8 307.0L153.2 307.0L154.5 307.0L155.8 307.0L157.0 307.0L158.3 307.0L159.7 307.0L158.5 307.0L156.3 307.0L155.1 307.0L153.6 307.0L151.2 307.0L149.4 307.0L148.1 307.0L145.7 307.0L143.2 307.0L140.7 307.0L138.5 307.0L136.3 307.0L133.4 307.0L131.8 307.0L130.0 307.0L128.5 307.0L127.0 307.0L125.6 307.0L124.1 307.0L122.9 307.0L121.6 307.0L119.8 307.0L117.4 307.0L115.9 307.0L114.3 307.0L112.9 307.0L111.6 307.0L109.4 307.0L107.7 307.0L102.8 307.0L101.5 307.0L100.2 307.0L102.4 307.0L103.6 307.0L105.4 307.0L106.6 307.0L108.1 307.0L106.9 307.0L105.6 307.0L103.5 307.0L102.2 307.0L103.8 307.0L105.2 307.0L106.9 307.0L108.2 307.0L110.0 307.0L111.3 307.0L113.0 307.0L114.8 307.0L116.0 307.0L117.5 307.0L118.9 307.0L120.2 307.0L121.5 307.0L122.8 307.0L121.3 307.0L120.0 307.0L118.4 307.0L116.9 307.0L115.6 307.0L116.9 307.0L118.1 307.0L116.8 307.0L115.5 307.0L114.3 307.0L112.7 307.0L111.2 307.0L109.8 307.0L108.4 307.0L106.5 307.0L105.2 307.0L106.7 307.0L105.3 307.0L103.6 307.0L102.3 307.0L100.9 307.0L99.1 307.0L97.2 307.0L95.9 307.0L94.5 307.0L92.8 307.0L91.4 307.0L89.5 307.0L88.2 307.0L86.3 307.0L84.5 307.0L83.1 307.0L81.9 307.0L80.2 307.0L79.0 307.0L80.6 307.0L78.7 307.0L77.0 307.0L75.5 307.0L72.5 307.0L71.0 307.0L69.0 307.0L67.2 307.0L65.8 307.0L64.2 307.0L62.0 307.0L60.6 307.0L57.4 307.0L56.1 307.0L54.6 307.0L53.1 307.0L51.0 307.0L47.4 307.0L46.2 307.0L44.8 307.0L41.6 307.0L40.0 307.0L38.5 307.0L36.6 307.0L34.6 307.0L32.6 307.0L30.9 307.0L32.1 307.0L29.6 307.0L28.1 307.0L26.7 307.0L27.9 307.0L26.1 307.0L24.3 307.0L22.6 307.0L20.3 307.0L18.7 307.0L17.1 307.0L15.1 307.0L12.0 307.0L10.0 307.0L7.9 307.0L6.6 306.2L5.3 305.9L3.5 305.3L1.7 304.9L-0.1 303.6L-1.3 303.1L-4.0 301.6L-4.0 300.3L-4.0 298.8L-4.0 297.2L-4.0 295.8L-4.0 293.9L-4.0 291.8L-4.0 290.4L-4.0 289.1L-4.0 287.1L-4.0 285.4L-4.0 282.5L-4.0 280.8L-4.0 279.3L-4.0 278.0L-4.0 276.5L-4.0 275.3L-4.0 273.7L-4.0 272.1L-4.0 270.8L-4.0 268.6L-4.0 266.3L-4.0 264.2L-4.0 262.9L-4.0 261.3L-4.0 258.6L-4.0 255.6L-4.0 251.5L-4.0 250.0L-4.0 248.1L-4.0 246.6L-4.0 245.3L-4.0 243.9L-4.0 240.8L-4.0 239.3L-4.0 237.9L-4.0 236.1L-4.0 234.3L-4.0 233.0L-4.0 231.4L-4.0 229.6L-4.0 228.2L-4.0 226.5L-4.0 224.6L-4.0 223.4L-4.0 222.1L-4.0 220.2L-4.0 218.5L-4.0 217.2L-4.0 215.4L-4.0 214.0L-4.0 212.6L-4.0 211.4L-4.0 210.0L-4.0 208.0L-4.0 206.4L-4.0 205.2L-4.0 203.4L-4.0 201.5L-4.0 202.9L-4.0 205.5L-4.0 206.9L-4.0 208.2L-4.0 210.0L-4.0 211.8L-4.0 213.3L-4.0 214.6L-4.0 216.2L-4.0 217.8L-4.0 219.7L-4.0 220.9L-4.0 223.7L-4.0 225.2L-4.0 226.6L-4.0 227.9L-4.0 229.6L-4.0 231.7L-4.0 233.1L-4.0 234.4L-4.0 236.4L-4.0 235.1L-4.0 237.0L-4.0 238.6L-4.0 240.2L-4.0 241.5L-4.0 244.0L-4.0 246.9L-4.0 248.8L-4.0 250.2L-4.0 252.4L-4.0 253.7L-4.0 252.4L-4.0 254.0L-4.0 255.7L-4.0 257.1L-4.0 258.4L-4.0 260.2L-4.0 261.8L-4.0 259.3L-4.0 258.1L-4.0 256.6L-4.0 255.0L-4.0 252.5L-4.0 251.0L-4.0 249.0L-4.0 247.6L-4.0 245.7L-4.0 244.0L-4.0 242.6L-4.0 239.5L-4.0 237.0L-4.0 235.6L-4.0 234.2L-4.0 232.6L-4.0 231.2L-4.0 229.6L-4.0 228.3L-4.0 225.7L-4.0 224.3L-4.0 223.1L-4.0 219.7L-4.0 218.4L-4.0 216.7L-4.0 215.2L-4.0 213.9L-4.0 211.4L-4.0 209.6L-4.0 207.9L-4.0 206.2L-4.0 204.1L-4.0 202.7L-4.0 201.5L-4.0 199.7L-4.0 198.3L-4.0 196.0L-4.0 194.2L-4.0 192.1L-4.0 190.8L-4.0 189.1L-4.0 187.8L-4.0 185.8L-4.0 184.2L-4.0 182.7L-4.0 181.3L-4.0 179.4L-4.0 178.0L-4.0 176.5L-4.0 174.9L-4.0 173.6L-4.0 171.1L-4.0 169.9L-4.0 168.2L-4.0 166.6L-4.0 165.3L-4.0 163.8L-4.0 161.5L-4.0 160.0L-4.0 161.2L-4.0 159.8L-4.0 158.3L-4.0 159.6L-4.0 158.2L-4.0 156.8L-4.0 155.3L-4.0 153.7L-4.0 152.1L-4.0 150.7L-4.0 149.0L-4.0 147.2L-4.0 145.6L-4.0 144.0L-4.0 142.1L-4.0 140.5L-4.0 139.3L-4.0 137.9L-4.0 136.7L-4.0 135.1L-4.0 133.4L-4.0 131.6L-4.0 130.0L-4.0 128.8L-4.0 126.8L-4.0 125.2L-4.0 123.9L-4.0 121.6L-4.0 120.2L-4.0 116.7L-4.0 114.8L-4.0 113.5L-4.0 111.7L-4.0 107.4L-4.0 106.2L-4.0 104.4L-4.0 102.3L-4.0 100.7L-4.0 99.1L-4.0 97.4L-4.0 95.8L-4.0 93.6L-4.0 91.9L-4.0 90.2L-4.0 88.5L-4.0 86.9L-4.0 88.1L-4.0 89.4L-4.0 91.3L-4.0 92.6L-4.0 94.0L-4.0 92.6L-4.0 91.2L-4.0 92.8L-4.0 94.4L-4.0 95.6L-4.0 94.4L-4.0 92.8L-4.0 91.5L-4.0 90.2L-4.0 89.0L-4.0 87.7L-4.0 86.5L-4.0 84.9L-4.0 83.6L-4.0 82.4L-4.0 81.1L-4.0 79.9L-4.0 78.6L-4.0 79.9L-4.0 78.5L-4.0 77.2L-4.0 75.9L-4.0 74.6L-4.0 75.8L-4.0 77.2L-4.0 75.6L-4.0 74.0L-4.0 72.0L-4.0 70.8L-4.0 72.2L-4.0 70.9L-4.0 69.1L-4.0 67.8L-4.0 66.5L-4.0 64.7L-4.0 63.2L-4.0 61.4L-4.0 59.9L-4.0 61.5L-4.0 60.2L-4.0 58.8L-4.0 57.5L-4.0 56.2L-4.0 57.5L-4.0 59.5L-4.0 60.9L-4.0 62.3L-4.0 60.9L-4.0 59.6L-4.0 58.2L-4.0 59.4L-4.0 57.7L-4.0 56.4L-4.0 54.1L-4.0 52.8L-4.0 51.4L-4.0 50.2L-4.0 52.2L-4.0 50.5L-4.0 49.3L-4.0 50.7L-4.0 52.2L-4.0 50.6L-4.0 49.1L-4.0 47.5L-4.0 45.8L-4.0 44.5L-4.0 43.2L-4.0 40.8L-4.0 39.4L-4.0 38.1L-4.0 39.6L-4.0 40.9L-4.0 39.5L-4.0 38.1L-4.0 36.5L-4.0 35.3L-4.0 36.8L-4.0 38.5L-4.0 40.4L-4.0 41.7L-4.0 43.0L-4.0 41.7L-4.0 40.2L-4.0 39.0L-4.0 37.5L-4.0 36.2L-4.0 34.7L-4.0 35.9L-4.0 37.5L-4.0 36.1L-4.0 34.9L-4.0 33.3L-4.0 31.8L-4.0 30.6L-4.0 29.2L-4.0 27.8L-4.0 26.4L-4.0 23.7L-4.0 22.2L-4.0 20.7L-4.0 19.2L-4.0 17.4L-4.0 18.7L-4.0 16.2L-4.0 14.9L-4.0 13.2L-4.0 11.5L-4.0 13.2L-4.0 14.4L-4.0 16.0L-4.0 18.3L-4.0 16.7L-4.0 15.2L-4.0 13.8L-4.0 15.0L-4.0 13.5L-4.0 14.8L-4.0 16.4L-4.0 18.0L-4.0 16.7L-4.0 15.3L-4.0 13.4L-4.0 12.1L-4.0 10.6L-4.0 9.0L-4.0 7.7L-4.0 9.6L-4.0 8.1L-4.0 6.9L-4.0 8.2L-4.0 6.9L-4.0 5.6L-4.0 3.7L-4.0 2.3L-4.0 3.8L-4.0 2.4L-4.0 1.1L-4.0 -0.4L-4.0 1.0L-4.0 2.2L-4.0 3.5L-4.0 5.0L-4.0 7.0L-4.0 8.5L-4.0 9.9L-4.0 11.4L-4.0 9.7L-4.0 8.5L-4.0 7.0L-4.0 5.5L-4.0 3.7L-4.0 2.3L-4.0 1.1L-4.0 -0.2L-4.0 -1.5L-4.0 -2.9L-4.0 -1.4L-4.0 -0.1L-4.0 1.1L-4.0 3.2L-4.0 4.6L-4.0 6.0L-4.0 7.4L-4.0 8.7L-4.0 10.0L-4.0 11.3L-4.0 12.7L-4.0 14.0L-4.0 15.5L-4.0 17.3L-4.0 18.6L-4.0 19.8L-4.0 21.3L-4.0 22.5L-4.0 23.8L-4.0 25.1L-4.0 26.8L-4.0 28.1L-4.0 29.8L-4.0 31.1L-4.0 32.4L-4.0 33.7L-4.0 35.5L-4.0 36.8L-4.0 35.5L-4.0 36.8L-4.0 38.0L-4.0 40.0L-4.0 41.3L-4.0 40.0L-4.0 38.2L-4.0 36.4L-4.0 35.1L-4.0 33.5L-4.0 32.3L-4.0 30.6L-4.0 29.1L-4.0 27.9L-4.0 26.2L-4.0 24.7L-4.0 23.4L-4.0 21.4L-4.0 19.7L-4.0 18.2L-4.0 16.2L-4.0 14.0L-4.0 15.5L-4.0 14.2L-4.0 15.7L-4.0 17.1L-4.0 15.7L-4.0 14.4L-4.0 16.1L-4.0 14.5L-4.0 13.0L-4.0 11.3L-4.0 9.7L-4.0 7.0L-4.0 5.7L-4.0 3.7L-4.0 2.2L-4.0 4.2L-4.0 5.5L-4.0 7.0L-4.0 8.3L-4.0 6.9L-4.0 4.8L-4.0 3.4L-4.0 1.8L-4.0 0.4L-4.0 -0.8L-4.0 -2.1L-4.0 -3.4L-2.8 -4.0L-1.1 -4.0L1.2 -4.0L2.8 -4.0L4.6 -4.0L5.8 -4.0L8.3 -4.0L6.9 -4.0L8.5 -4.0L10.4 -4.0L12.8 -4.0L14.6 -4.0L13.1 -4.0L11.2 -4.0L9.7 -4.0L8.4 -4.0L10.2 -4.0L11.8 -4.0L13.1 -4.0L14.6 -4.0L16.1 -4.0L18.1 -4.0L21.0 -4.0L19.4 -4.0L20.7 -4.0L22.1 -4.0L23.4 -4.0L22.2 -4.0L20.9 -4.0L19.6 -4.0L22.0 -4.0L23.4 -4.0L24.6 -4.0L23.4 -4.0L24.7 -4.0L26.1 -4.0L27.5 -4.0L29.5 -4.0L30.8 -4.0L32.5 -4.0L34.0 -4.0L32.8 -4.0L31.0 -4.0L29.6 -4.0L30.9 -4.0L32.9 -4.0L34.2 -4.0L32.6 -4.0L31.3 -4.0L29.9 -4.0L28.5 -4.0L25.2 -4.0L23.6 -4.0L22.2 -4.0L20.8 -4.0L18.8 -4.0L20.2 -4.0L22.1 -4.0L20.4 -4.0L18.5 -4.0L20.0 -4.0L21.5 -4.0L22.9 -4.0L24.4 -4.0L23.2 -4.0L25.7 -4.0L27.4 -4.0L28.9 -4.0L30.5 -4.0ZM103.2 56.8L101.7 56.7L99.9 56.1L97.3 55.4L96.2 54.8L97.2 53.8L100.0 53.5L102.3 54.8L103.3 56.2ZM112.8 32.6L112.1 34.0L111.6 35.2L111.7 33.5L110.3 34.9L108.4 35.8L109.8 33.8L108.3 34.8L107.1 35.0L108.3 33.7L109.3 32.8L109.9 31.7L109.5 33.1L110.7 31.8L111.0 30.3L112.0 31.2L112.8 32.1ZM238.6 65.2L237.9 66.2L236.0 66.5L236.7 67.5L236.4 69.5L235.3 70.4L234.7 71.7L233.7 72.9L232.8 74.3L232.0 75.3L231.7 76.6L231.4 77.7L233.0 76.7L234.0 75.7L235.3 75.9L237.0 76.0L238.2 75.8L237.2 76.9L235.5 77.8L235.2 79.5L236.7 79.1L238.5 79.4L239.6 79.0L239.9 80.3L239.2 81.5L240.7 80.6L241.9 80.3L242.9 79.6L243.9 80.3L246.6 79.6L248.5 80.4L248.7 81.7L247.7 82.4L247.0 83.4L245.6 84.1L247.2 83.9L248.1 84.8L247.0 86.2L245.8 86.8L247.2 86.4L248.8 86.2L250.3 85.6L251.5 85.0L251.5 86.2L250.2 87.0L248.9 87.9L248.0 89.1L247.2 90.9L248.2 91.9L250.3 89.5L252.2 88.5L251.8 89.7L251.2 90.8L250.9 92.9L252.1 92.6L252.8 91.4L253.6 92.6L252.3 95.7L252.0 97.7L251.2 98.8L249.7 98.4L248.6 98.9L248.6 97.2L248.7 95.7L247.6 96.3L246.4 97.5L245.9 95.8L246.6 94.6L247.2 93.4L246.7 92.0L246.2 90.9L244.3 92.6L243.4 93.8L243.9 92.7L242.9 93.6L240.6 95.2L239.7 96.8L238.5 97.0L236.9 97.3L236.2 96.3L237.8 95.6L238.9 94.9L240.1 93.3L241.2 92.9L242.2 92.0L240.9 92.0L239.1 91.9L238.6 93.1L236.9 93.0L235.3 93.0L236.4 92.3L236.5 91.0L235.2 91.1L234.3 91.9L231.8 92.3L230.6 92.5L227.8 92.1L225.6 91.9L223.7 91.8L222.3 91.9L220.0 92.4L218.5 92.3L217.7 90.4L219.9 88.4L221.2 87.3L222.3 86.5L221.1 85.8L219.9 85.9L218.7 85.7L220.5 84.4L221.2 85.4L222.1 83.3L222.8 82.1L224.7 82.7L224.7 81.4L223.8 80.5L224.4 79.2L225.8 79.4L225.4 78.0L226.5 75.6L227.1 74.4L227.9 72.6L228.6 71.6L229.7 70.3L230.3 69.3L231.3 68.0L232.1 66.6L234.6 65.5L236.2 65.0L237.4 65.6L238.3 64.8ZM375.2 -4.0L380.4 -4.0L383.1 -4.0L387.4 -4.0L390.9 -4.0L396.7 -4.0L395.5 -4.0L388.0 -4.0L374.5 -4.0L366.8 -4.0L364.3 -4.0L366.9 -4.0L372.9 -4.0L375.2 -4.0L379.4 -4.0L384.9 -4.0L387.1 -4.0L391.1 -4.0L395.7 -4.0L401.1 -4.0L402.6 -4.0L404.6 -4.0L406.2 -4.0L407.6 -4.0L408.8 -4.0L410.3 -4.0L415.1 -4.0L418.3 -4.0L419.5 -4.0L417.9 -4.0L415.3 -4.0L411.9 -4.0L407.9 -4.0L377.3 -4.0L375.6 -4.0L377.4 -4.0L380.8 -4.0L386.6 -4.0L390.8 -4.0L401.0 -4.0L404.0 -4.0L405.6 -4.0L409.1 -4.0L410.4 -4.0L411.9 -4.0L414.8 -4.0L420.1 -4.0L421.4 -4.0L419.3 -4.0L418.1 -4.0L415.6 -4.0L412.1 -4.0L413.4 -4.0L417.4 -4.0L420.8 -4.0L422.5 -4.0L423.8 -4.0L428.5 -4.0L430.6 -4.0L432.7 -4.0L435.7 -4.0L438.7 -4.0L440.8 -4.0L442.2 -4.0L443.4 -4.0L445.0 -4.0L446.6 -4.0L448.1 -4.0L449.4 -4.0L452.4 -4.0L454.1 -4.0L459.4 -4.0L462.3 -4.0L466.3 -4.0L469.1 -4.0L470.4 -4.0L472.3 -4.0L473.8 -4.0L470.2 -4.0L469.0 -4.0L465.4 -4.0L463.7 -4.0L461.8 -4.0L459.7 -4.0L458.3 -4.0L454.3 -4.0L452.4 -4.0L450.0 -4.0L448.3 -4.0L445.9 -4.0L447.7 -4.0L450.3 -4.0L449.1 -4.0L447.4 -4.0L445.4 -4.0L443.6 -4.0L440.8 -4.0L438.9 -4.0L435.6 -4.0L433.8 -4.0L431.6 -4.0L429.3 -4.0L427.8 -4.0L429.4 -4.0L431.2 -4.0L432.4 -4.0L433.9 -4.0L432.5 -4.0L430.1 -4.0L428.7 -4.0L427.5 -4.0L425.3 -4.0L422.5 -4.0L421.1 -4.0L419.8 -4.0L421.2 -4.0L422.5 -4.0L423.9 -4.0L425.5 -4.0L426.9 -4.0L428.6 -4.0L430.1 -4.0L431.3 -4.0L428.8 -4.0L426.2 -4.0L424.9 -4.0L427.3 -4.0L429.6 -4.0L431.6 -4.0L433.2 -4.0L434.5 -4.0L436.2 -4.0L437.5 -4.0L436.0 -4.0L434.6 -4.0L433.1 -4.0L431.2 -4.0L429.3 -4.0L426.0 -4.0L423.5 -4.0L419.9 -4.0L418.2 -4.0L416.9 -4.0L414.9 -4.0L416.3 -4.0L417.8 -4.0L419.2 -4.0L420.6 -4.0L422.2 -4.0L423.8 -4.0L425.5 -4.0L427.1 -4.0L429.3 -4.0L430.9 -4.0L429.7 -4.0L428.4 -4.0L426.0 -4.0L423.7 -4.0L421.9 -4.0L419.7 -4.0L416.6 -4.0L418.4 -4.0L420.0 -4.0L422.5 -4.0L424.0 -4.0L425.3 -4.0L427.4 -4.0L428.6 -4.0L431.0 -4.0L432.4 -4.0L430.5 -4.0L428.3 -4.0L425.1 -4.0L422.5 -4.0L420.1 -4.0L418.1 -4.0L416.1 -4.0L417.9 -4.0L421.6 -4.0L423.1 -4.0L426.6 -4.0L425.2 -4.0L421.5 -4.0L418.5 -4.0L416.9 -4.0L412.6 -4.0L411.3 -4.0L408.4 -4.0L406.3 -4.0L404.7 -4.0L403.5 -4.0L402.3 -4.0L399.9 -4.0L402.3 -4.0L400.1 -4.0L398.2 -4.0L396.1 -4.0L394.2 -4.0L392.3 -4.0L389.6 -4.0L393.2 -4.0L391.8 -4.0L389.7 -4.0L388.1 -4.0L390.1 -4.0L392.4 -4.0L394.1 -4.0L395.3 -4.0L399.6 -4.0L401.5 -4.0L404.0 -4.0L406.4 -4.0L407.7 -4.0L410.1 -4.0L412.5 -4.0L415.4 -4.0L416.8 -4.0L415.2 -4.0L411.4 -4.0L408.9 -4.0L406.8 -4.0L405.2 -4.0L403.8 -4.0L401.8 -4.0L400.4 -4.0L397.2 -4.0L395.3 -4.0L392.9 -4.0L394.3 -4.0L395.9 -4.0L398.1 -4.0L399.9 -4.0L401.9 -4.0L403.7 -4.0L401.1 -4.0L402.6 -4.0L404.1 -4.0L405.9 -4.0L408.2 -4.0L410.9 -4.0L412.7 -4.0L414.8 -4.0L416.4 -4.0L418.1 -4.0L416.2 -4.0L418.1 -4.0L419.5 -4.0L418.2 -4.0L415.8 -4.0L414.6 -4.0L412.8 -4.0L411.5 -4.0L408.3 -4.0L406.5 -4.0L405.1 -4.0L403.0 -4.0L401.6 -4.0L399.4 -4.0L397.0 -4.0L395.3 -4.0L392.7 -4.0L391.0 -4.0L392.5 -4.0L394.0 -4.0L396.0 -4.0L397.3 -4.0L395.6 -4.0L393.3 -4.0L390.7 -4.0L389.3 -4.0L387.4 -4.0L384.1 -4.0L385.8 -4.0L383.5 -4.0L380.2 -4.0L382.3 -4.0L385.6 -4.0L387.9 -4.0L392.4 -4.0L393.7 -4.0L392.3 -4.0L390.7 -4.0L389.3 -4.0L388.1 -4.0L389.6 -4.0L390.9 -4.0L392.4 -4.0L394.2 -4.0L395.6 -4.0L398.4 -4.0L403.1 -4.0L406.9 -4.0L408.9 -4.0L411.6 -4.0L416.3 -4.0L414.6 -4.0L412.3 -4.0L409.5 -4.0L408.1 -4.0L405.8 -4.0L403.2 -4.0L401.1 -4.0L398.9 -4.0L396.7 -4.0L395.2 -4.0L393.8 -4.0L392.1 -4.0L390.6 -4.0L386.5 -4.0L385.0 -4.0L383.8 -4.0L381.1 -4.0L379.9 -4.0L378.1 -4.0L376.5 -4.0L375.2 -4.0L374.0 -4.0L371.1 -4.0L369.7 -4.0L367.4 -4.0L365.7 -4.0L363.6 -4.0L362.3 -4.0L359.4 -4.0L358.1 -4.0L356.5 -4.0L354.2 -4.0L352.5 -4.0L351.0 -4.0L347.8 -4.0L346.0 -4.0L344.7 -4.0L342.6 -4.0L341.3 -4.0L340.0 -4.0L338.4 -4.0L337.2 -4.0L335.8 -4.0L333.9 -4.0L332.4 -4.0L334.9 -4.0L333.1 -4.0L331.9 -4.0L333.5 -4.0L331.8 -4.0L330.0 -4.0L328.7 -4.0L326.3 -4.0L324.6 -4.0L321.6 -4.0L320.4 -4.0L323.3 -4.0L321.8 -4.0L320.1 -4.0L317.9 -4.0L315.6 -4.0L317.0 -4.0L318.6 -4.0L319.9 -4.0L317.7 -4.0L316.2 -4.0L313.0 -4.0L315.1 -4.0L317.0 -4.0L318.4 -4.0L316.6 -4.0L315.2 -4.0L314.0 -4.0L312.7 -4.0L310.6 -4.0L312.7 -4.0L311.2 -4.0L309.0 -4.0L306.7 -4.0L308.2 -4.0L309.9 -4.0L307.9 -4.0L308.1 -2.5L307.3 -0.4L306.9 1.6L305.1 3.3L303.5 3.3L302.2 2.9L300.4 2.8L301.8 3.4L303.8 3.8L304.5 4.8L304.7 6.5L303.6 7.4L302.1 7.3L300.2 6.7L301.4 7.6L299.4 8.0L298.2 7.6L298.8 5.6L297.4 6.2L295.7 6.5L292.6 5.5L293.6 4.3L294.8 3.7L296.0 2.4L294.2 3.4L292.6 3.8L291.5 3.3L289.6 2.9L288.5 1.5L289.2 0.2L290.1 -1.2L287.7 -0.2L286.2 0.3L285.0 1.0L283.3 1.3L281.9 1.4L280.1 1.2L278.5 1.9L277.3 1.3L279.1 0.4L277.8 -0.0L276.5 -0.0L276.3 -1.3L273.6 -1.9L273.0 -3.6L271.7 -4.0L273.0 -4.0L271.7 -4.0L269.9 -4.0L268.2 -4.0L266.9 -4.0L269.0 -4.0L267.4 -4.0L266.0 -4.0L264.8 -4.0L263.5 -4.0L261.5 -4.0L260.0 -4.0L263.0 -4.0L264.7 -4.0L266.0 -4.0L264.0 -4.0L262.1 -4.0L260.6 -4.0L259.4 -4.0L261.3 -4.0L263.0 -4.0L265.2 -4.0L267.0 -4.0L265.1 -4.0L263.5 -4.0L261.3 -4.0L260.0 -4.0L258.4 -4.0L257.2 -4.0L255.9 -4.0L254.5 -4.0L256.2 -4.0L258.6 -4.0L261.2 -4.0L258.6 -4.0L256.9 -4.0L255.3 -4.0L253.1 -4.0L251.8 -4.0L250.5 -4.0L254.4 -4.0L256.3 -4.0L257.5 -4.0L258.9 -4.0L261.1 -4.0L259.0 -4.0L254.9 -4.0L253.5 -4.0L252.2 -4.0L250.9 -4.0L249.6 -4.0L248.3 -4.0L249.5 -4.0L251.2 -4.0L253.9 -4.0L252.3 -4.0L250.6 -4.0L248.8 -4.0L247.1 -4.0L248.8 -4.0L250.6 -4.0L252.0 -4.0L253.6 -4.0L255.1 -4.0L257.6 -4.0L258.9 -4.0L261.5 -4.0L264.1 -4.0L261.6 -4.0L263.1 -4.0L260.8 -4.0L258.4 -4.0L256.6 -4.0L255.3 -4.0L253.5 -4.0L251.9 -4.0L249.5 -4.0L247.8 -4.0L249.9 -4.0L251.6 -4.0L254.8 -4.0L256.8 -4.0L258.3 -4.0L259.7 -4.0L261.4 -4.0L260.1 -4.0L258.2 -4.0L256.1 -4.0L253.4 -4.0L250.9 -4.0L252.4 -4.0L253.9 -4.0L255.5 -4.0L258.3 -4.0L259.9 -4.0L261.8 -4.0L263.6 -4.0L262.3 -4.0L263.6 -4.0L265.8 -4.0L264.3 -4.0L262.1 -4.0L263.5 -4.0L265.4 -4.0L263.6 -4.0L261.9 -4.0L260.3 -4.0L255.8 -4.0L254.1 -4.0L251.7 -4.0L249.9 -4.0L247.7 -4.0L246.4 -4.0L244.6 -4.0L247.2 -4.0L249.0 -4.0L251.3 -4.0L252.8 -4.0L255.0 -4.0L258.3 -4.0L259.7 -4.0L262.8 -4.0L264.2 -4.0L262.9 -4.0L261.6 -4.0L259.9 -4.0L258.5 -4.0L261.1 -4.0L262.3 -4.0L260.5 -4.0L258.3 -4.0L256.8 -4.0L254.9 -4.0L253.0 -4.0L251.7 -4.0L253.1 -4.0L257.3 -4.0L256.1 -4.0L253.6 -4.0L252.2 -4.0L250.9 -4.0L249.4 -4.0L251.0 -4.0L249.8 -4.0L248.4 -4.0L247.0 -4.0L248.4 -4.0L247.0 -4.0L245.5 -4.0L242.7 -4.0L240.8 -4.0L239.3 -4.0L237.9 -4.0L239.4 -4.0L241.2 -4.0L239.4 -4.0L237.9 -4.0L239.5 -4.0L238.0 -4.0L240.4 -4.0L242.2 -4.0L240.7 -4.0L239.1 -4.0L237.7 -4.0L239.1 -4.0L237.6 -4.0L235.8 -4.0L234.5 -4.0L233.1 -4.0L230.6 -4.0L229.3 -4.0L230.7 -4.0L231.9 -4.0L233.3 -4.0L231.4 -4.0L230.0 -4.0L228.4 -4.0L226.0 -4.0L224.4 -4.0L222.0 -4.0L223.5 -4.0L222.2 -4.0L220.3 -4.0L218.2 -4.0L215.8 -4.0L213.4 -4.0L209.6 -4.0L207.9 -4.0L205.6 -4.0L203.1 -4.0L200.9 -4.0L199.6 -4.0L198.2 -4.0L196.7 -4.0L194.9 -4.0L193.1 -4.0L191.7 -4.0L189.9 -4.0L188.0 -4.0L185.8 -4.0L184.4 -4.0L182.8 -4.0L181.4 -4.0L180.2 -4.0L178.6 -4.0L176.8 -4.0L178.5 -4.0L170.6 -4.0L168.4 -4.0L165.5 -4.0L164.1 -4.0L166.8 -4.0L170.1 -4.0L167.3 -4.0L164.7 -4.0L162.5 -4.0L159.5 -4.0L157.4 -4.0L155.3 -4.0L157.5 -4.0L162.6 -4.0L166.2 -4.0L167.4 -4.0L170.7 -4.0L174.5 -4.0L177.1 -4.0L178.4 -4.0L180.1 -4.0L178.4 -4.0L176.9 -4.0L174.0 -4.0L171.5 -4.0L169.9 -4.0L168.6 -4.0L166.9 -4.0L165.6 -4.0L164.2 -4.0L160.8 -4.0L159.0 -4.0L157.7 -4.0L159.2 -4.0L157.4 -4.0L155.4 -4.0L153.9 -4.0L152.6 -4.0L149.7 -4.0L146.9 -4.0L145.6 -4.0L146.9 -4.0L149.9 -4.0L151.9 -4.0L153.2 -4.0L155.9 -4.0L157.4 -4.0L160.9 -4.0L166.1 -4.0L169.4 -4.0L171.1 -4.0L173.0 -4.0L174.2 -4.0L179.0 -4.0L180.8 -4.0L182.3 -4.0L184.5 -4.0L186.0 -4.0L187.6 -4.0L189.5 -4.0L191.9 -4.0L190.5 -4.0L188.9 -4.0L187.6 -4.0L186.3 -4.0L184.5 -4.0L183.2 -4.0L180.6 -4.0L177.6 -4.0L176.0 -4.0L178.9 -4.0L180.1 -4.0L181.4 -4.0L183.2 -4.0L185.6 -4.0L187.2 -4.0L189.1 -4.0L193.4 -4.0L195.1 -4.0L197.9 -4.0L200.0 -4.0L202.0 -4.0L203.3 -4.0L205.5 -4.0L207.2 -4.0L208.8 -4.0L212.0 -4.0L213.7 -4.0L216.2 -4.0L218.1 -4.0L219.9 -4.0L222.7 -4.0L224.6 -4.0L226.1 -4.0L227.7 -4.0L229.9 -4.0L231.8 -4.0L229.5 -4.0L225.8 -4.0L223.8 -4.0L222.0 -4.0L220.6 -4.0L218.2 -4.0L221.2 -4.0L226.5 -4.0L232.5 -4.0L234.6 -4.0L238.1 -4.0L242.5 -4.0L245.0 -4.0L246.5 -4.0L248.2 -4.0L249.5 -4.0L251.0 -4.0L253.0 -4.0L258.5 -4.0L260.6 -4.0L263.1 -4.0L265.9 -4.0L268.6 -4.0L270.3 -4.0L265.7 -4.0L264.0 -4.0L262.6 -4.0L267.6 -4.0L274.0 -4.0L282.0 -4.0L286.0 -4.0L293.1 -4.0L295.2 -4.0L296.8 -4.0L298.2 -4.0L296.9 -4.0L291.7 -4.0L294.3 -4.0L307.2 -4.0L309.5 -4.0L310.8 -4.0L314.1 -4.0L298.7 -4.0L295.9 -4.0L294.5 -4.0L293.0 -4.0L290.0 -4.0L288.6 -4.0L286.7 -4.0L288.4 -4.0L289.8 -4.0L292.4 -4.0L294.0 -4.0L296.5 -4.0L299.0 -4.0L304.3 -4.0L306.6 -4.0L309.3 -4.0L311.7 -4.0L313.3 -4.0L316.2 -4.0L317.7 -4.0L319.5 -4.0L322.0 -4.0L323.6 -4.0L325.1 -4.0L327.1 -4.0L330.7 -4.0L331.9 -4.0L329.2 -4.0L331.1 -4.0L332.4 -4.0L333.6 -4.0L334.9 -4.0L336.8 -4.0L338.5 -4.0L345.8 -4.0L347.3 -4.0L348.5 -4.0L350.0 -4.0L351.3 -4.0L352.9 -4.0L354.4 -4.0L356.8 -4.0L359.0 -4.0L371.2 -4.0L375.2 -4.0Z"};
+function proj(lat, lon) { return [(lon - LAND.LON0) / (LAND.LON1 - LAND.LON0) * LAND.W, (LAND.LAT1 - lat) / (LAND.LAT1 - LAND.LAT0) * LAND.H]; }
+const mapSvg = $("map");
+mapSvg.setAttribute("viewBox", `0 0 ${LAND.W} ${LAND.H}`);
+(function drawMapBase() {
+  let g = "";
+  for (let lon = -90; lon <= 10; lon += 10) { const [x] = proj(0, lon); g += `<line x1="${x}" y1="0" x2="${x}" y2="${LAND.H}"/>`; }
+  for (let lat = 20; lat <= 60; lat += 10) { const [, y] = proj(lat, 0); g += `<line x1="0" y1="${y}" x2="${LAND.W}" y2="${y}"/>`; }
+  let lbl = "";
+  for (let lon = -90; lon <= 0; lon += 30) { const [x] = proj(0, lon); lbl += `<text x="${x + 3}" y="${LAND.H - 4}">${Math.abs(lon)}°${lon < 0 ? "W" : ""}</text>`; }
+  for (let lat = 20; lat <= 60; lat += 20) { const [, y] = proj(lat, 0); lbl += `<text x="3" y="${y - 3}">${lat}°N</text>`; }
+  const wps = WAYPOINTS.map((w, i) => {
+    const [x, y] = proj(w.lat, w.lon);
+    const anchor = i === WAYPOINTS.length - 1 ? "end" : "start";
+    const dx = i === WAYPOINTS.length - 1 ? -7 : 7, dy = (i === 1) ? 14 : -7;
+    return `<circle cx="${x}" cy="${y}" r="3.2" fill="var(--paper)" stroke="var(--ink)" stroke-width="1.4"/>
+      <text x="${x + dx}" y="${y + dy}" text-anchor="${anchor}" style="fill:var(--ink-2);font-size:12px">${w.short}</text>`;
+  }).join("");
+  let base = "";
+  for (let k = 0; k <= 300; k++) { const r = routeAt(k / 300 * ROUTE_NM); const [x, y] = proj(r.lat, r.lon); base += (k ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1); }
+  mapSvg.innerHTML = `
+    <rect width="${LAND.W}" height="${LAND.H}" fill="var(--sea)"/>
+    <g stroke="var(--rule)" stroke-width="0.6">${g}</g>
+    <path d="${LAND.d}" fill="var(--land)" stroke="var(--land-edge)" stroke-width="0.6"/>
+    <path d="${base}" fill="none" stroke="var(--ink-3)" stroke-width="1" stroke-dasharray="3 3"/>
+    <g id="mapProfile"></g>
+    <g>${lbl}</g>
+    <g>${wps}</g>
+    <g id="mapShip"></g>`;
+})();
+const ROUTE_DRAW = Array.from({ length: 301 }, (_, k) => { const r = routeAt(k / 300 * ROUTE_NM); return [...proj(r.lat, r.lon), k / 300]; });
+mapSvg.addEventListener("click", e => {
+  const pt = mapSvg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(mapSvg.getScreenCTM().inverse());
+  let best = 0, bd = Infinity;
+  for (const [x, y, f] of ROUTE_DRAW) { const d = (x - p.x) ** 2 + (y - p.y) ** 2; if (d < bd) { bd = d; best = f; } }
+  $("pos").value = Math.round(best * 1000); state.pos = +$("pos").value; schedule();
+});
+
+function drawMap() {
+  const prof = routeProfile(state.A, state.leg, state.m);
+  let tmax = 0;
+  for (let leg = 0; leg < 2; leg++) for (let m = 0; m < 12; m++) tmax = Math.max(tmax, state.ann.T[leg][m]);
+  const scaleT = Math.max(tmax * 2.2, 1);  // width scale: 2.2x the best monthly mean leg thrust
+  const col = state.leg ? "var(--west)" : "var(--kite)";
+  let s = "";
+  for (let k = 0; k < NK; k++) {
+    const a = routeAt(k / NK * ROUTE_NM), b = routeAt((k + 0.5) / NK * ROUTE_NM), c = routeAt((k + 1) / NK * ROUTE_NM);
+    const w = 0.6 + 7 * Math.min(prof[k] / scaleT, 1);
+    if (prof[k] < 1) continue;
+    const [x1, y1] = proj(a.lat, a.lon), [x2, y2] = proj(b.lat, b.lon), [x3, y3] = proj(c.lat, c.lon);
+    s += `<path d="M${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}L${x3.toFixed(1)} ${y3.toFixed(1)}" stroke="${col}" stroke-width="${w.toFixed(2)}" stroke-linecap="round" fill="none" stroke-opacity="0.9"/>`;
+  }
+  $("mapProfile").innerHTML = s;
+  const r = routeAt(state.pos / 1000 * ROUTE_NM), [x, y] = proj(r.lat, r.lon);
+  const hd = (r.hdg + (state.leg ? Math.PI : 0)) / D2R;
+  $("mapShip").innerHTML = `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${hd.toFixed(1)})">
+    <circle r="11" fill="none" stroke="var(--ink)" stroke-width="1" stroke-opacity="0.4"/>
+    <path d="M0 -9 L5.5 6 L0 3 L-5.5 6 Z" fill="var(--ink)" stroke="var(--paper)" stroke-width="1"/></g>`;
+  $("mapNote").textContent = `Line width = expected along-track thrust, ${MONTHS[state.m]}, ${state.leg ? "westbound" : "eastbound"}. Thickest ≈ ${fmt(scaleT / 1000)} kN. Click the route to move the ship.`;
+}
+
+// ---------- dial ----------
+const DIAL = { cx: 180, cy: 180, R: 158, maxKn: 50 };
+function dialXY(eastMs, northMs) { const k = DIAL.R / (DIAL.maxKn * KN); return [DIAL.cx + eastMs * k, DIAL.cy - northMs * k]; }
+function arrowSvg(x1, y1, x2, y2, color, width, dash) {
+  const a = Math.atan2(y2 - y1, x2 - x1), L = Math.hypot(x2 - x1, y2 - y1);
+  if (L < 2) return "";
+  const hl = Math.min(11, L * 0.5), hw = 4.5 + width * 0.6;
+  const bx = x2 - hl * Math.cos(a), by = y2 - hl * Math.sin(a);
+  const p1 = [bx + hw * Math.sin(a), by - hw * Math.cos(a)], p2 = [bx - hw * Math.sin(a), by + hw * Math.cos(a)];
+  return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${bx.toFixed(1)}" y2="${by.toFixed(1)}" stroke="${color}" stroke-width="${width}" ${dash ? `stroke-dasharray="${dash}"` : ""}/>
+    <polygon points="${x2.toFixed(1)},${y2.toFixed(1)} ${p1[0].toFixed(1)},${p1[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}" fill="${color}"/>`;
+}
+function sectorPath(b1, b2, R) {  // bearings in rad, clockwise from north
+  const { cx, cy } = DIAL, p = b => [cx + R * Math.sin(b), cy - R * Math.cos(b)];
+  const [x1, y1] = p(b1), [x2, y2] = p(b2);
+  return `M${cx} ${cy}L${x1.toFixed(1)} ${y1.toFixed(1)}A${R} ${R} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)}Z`;
+}
+function drawDial(pe) {
+  const { cx, cy, R } = DIAL, t = pe.typ, h = pe.h;
+  let s = `<defs><clipPath id="dclip"><circle cx="${cx}" cy="${cy}" r="${R + 1}"/></clipPath>
+    <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="var(--ink-3)" stroke-width="1.2" stroke-opacity="0.5"/></pattern></defs>`;
+  s += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="var(--sea)" stroke="var(--rule)"/>`;
+  // no-fly sector: apparent wind blowing toward within (180 - MAX_DELTA) deg of astern
+  const half = Math.PI - DELTA_MAX;
+  s += `<path d="${sectorPath(h + Math.PI - half, h + Math.PI + half, R)}" fill="url(#hatch)"/>`;
+  for (let kn = 10; kn <= DIAL.maxKn; kn += 10) {
+    const r = R * kn / DIAL.maxKn;
+    s += `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--rule)" stroke-width="${kn % 20 ? 0.6 : 1}"/>`;
+    if (kn % 20 === 0) s += `<text x="${cx + 3}" y="${cy - r + 11}">${kn}</text>`;
+  }
+  for (let d = 0; d < 360; d += 10) {
+    const b = d * D2R, r1 = d % 90 ? R - 5 : R - 10;
+    s += `<line x1="${cx + r1 * Math.sin(b)}" y1="${cy - r1 * Math.cos(b)}" x2="${cx + R * Math.sin(b)}" y2="${cy - R * Math.cos(b)}" stroke="var(--ink-3)" stroke-width="0.8"/>`;
+  }
+  s += `<text x="${cx}" y="${cy - R - 4}" text-anchor="middle" style="fill:var(--ink);font-size:13px;font-weight:600">N</text>`;
+  s += `<g clip-path="url(#dclip)">`;
+  // sampled apparent winds
+  let dg = "", df = "";
+  for (let j = 0; j < pe.dots.length; j += (pe.dots.length > 600 ? 2 : 1)) {
+    const [ua, va, fl] = pe.dots[j], [x, y] = dialXY(ua, va);
+    if (fl) df += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.9"/>`; else dg += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.7"/>`;
+  }
+  s += `<g fill="var(--ink-3)" fill-opacity="0.45">${dg}</g><g fill="var(--kite)" fill-opacity="0.55">${df}</g>`;
+  // ship
+  s += `<g transform="translate(${cx} ${cy}) rotate(${(h / D2R).toFixed(1)})"><line x1="0" y1="-24" x2="0" y2="${-R}" stroke="var(--ink-3)" stroke-dasharray="3 4" stroke-width="0.8"/>
+    <path d="M0 -22 C6 -14 7 -6 7 14 L-7 14 C-7 -6 -6 -14 0 -22 Z" fill="var(--land)" stroke="var(--land-edge)" stroke-width="1.2"/></g>`;
+  // velocity triangle
+  const [xw, yw] = dialXY(t.u * SHEAR, t.v * SHEAR);
+  const [xa, ya] = dialXY(t.ua, t.va);
+  s += arrowSvg(cx, cy, xw, yw, "var(--wind)", 2.4);
+  s += arrowSvg(xw, yw, xa, ya, "var(--ink-3)", 2, "5 4");
+  s += arrowSvg(cx, cy, xa, ya, "var(--ink)", 3.2);
+  // kite bearing (only if the typical condition flies)
+  if (t.F > 0) {
+    let dd = t.dir - h; dd = Math.atan2(Math.sin(dd), Math.cos(dd));
+    const kb = t.dir - Math.sign(dd) * t.phi;
+    const kx = cx + (R - 14) * Math.sin(kb), ky = cy - (R - 14) * Math.cos(kb);
+    s += `<line x1="${cx}" y1="${cy}" x2="${kx.toFixed(1)}" y2="${ky.toFixed(1)}" stroke="var(--kite)" stroke-width="2" stroke-dasharray="1 0"/>
+      <g transform="translate(${kx.toFixed(1)} ${ky.toFixed(1)}) rotate(${(kb / D2R).toFixed(1)})"><path d="M0 -9 L6 0 L0 9 L-6 0 Z" fill="var(--kite)" stroke="var(--paper)" stroke-width="1"/></g>`;
+  }
+  s += `</g>`;
+  $("dial").innerHTML = s;
+}
+
+// ---------- readout ----------
+function drawReadout(pe) {
+  const t = pe.typ, hdgDeg = norm360(pe.h / D2R);
+  const fromDeg = norm360(Math.atan2(-t.u, -t.v) / D2R);
+  const awa = 180 - t.delta / D2R;
+  const P = pe.ET * VS / PAR.ETA_D / 1000;
+  let typLine;
+  if (t.F > 0) typLine = `<span class="hl">${fmt(t.T / 1000)} kN</span>${t.capped ? " (depowered)" : ""}`;
+  else if (t.landed) typLine = "landed (over tether limit)";
+  else if (t.delta >= DELTA_MAX) typLine = "no: wind too far forward";
+  else typLine = "no: too little wind";
+  const near = WAYPOINTS[pe.r.f < 0.5 ? pe.r.seg : pe.r.seg + 1].short;
+  $("readout").innerHTML = `
+    <div class="grp">Typical condition · ${MONTHS[state.m]}</div>
+    <dt>Wind at 10 m</dt><dd>${fmt(t.S / KN, 1)} kn from ${fmt(fromDeg)}° ${compass(fromDeg)}</dd>
+    <dt>Wind at ${fmt(H_KITE)} m</dt><dd>${fmt(t.S * SHEAR / KN, 1)} kn</dd>
+    <dt>Steadiness</dt><dd>${fmt(100 * pe.steady)}%</dd>
+    <dt>Ship heading</dt><dd>${String(Math.round(hdgDeg) % 360).padStart(3, "0")}°</dd>
+    <dt>Apparent wind at kite</dt><dd>${fmt(t.Va / KN, 1)} kn, ${fmt(awa)}° off bow</dd>
+    <dt>Kite thrust</dt><dd>${typLine}</dd>
+    <div class="grp">Averaged over the month's wind scatter</div>
+    <dt>Kite airborne</dt><dd>${fmt(100 * pe.flyFrac)}% of the time</dd>
+    <dt>Tether force while flying</dt><dd>${pe.flyFrac ? fmt(pe.EF / 1000) + " kN" : "–"}</dd>
+    <dt>Along-track thrust</dt><dd class="hl">${fmt(pe.ET / 1000, 1)} kN</dd>
+    <dt>Power saved</dt><dd>${fmt(P)} kW · ${fmt(100 * P / CONFIG.ME_POWER_KW, 1)}%</dd>`;
+  $("flyBadge").innerHTML = t.F > 0 ? `<span class="status fly">Typical: flying</span>` : `<span class="status no">Typical: grounded</span>`;
+  $("posVal").textContent = `${fmt(state.pos / 1000 * ROUTE_NM)} nm from Houston · near ${near}`;
+}
+
+// ---------- worked example (MathJax) ----------
+let workedTimer = null;
+function drawWorked(pe) {
+  const t = pe.typ, K = K_PER_M2 * state.A, c = (x, d = 1) => fmt(x, d).replace(/,/g, "{,}");
+  const fromDeg = norm360(Math.atan2(-t.u, -t.v) / D2R), toDeg = norm360(fromDeg + 180);
+  const hdg = norm360(pe.h / D2R), dDeg = t.delta / D2R, pDeg = t.phi / D2R;
+  const VwH = t.S * SHEAR;
+  const rows = [];
+  rows.push(String.raw`V(h) = ${c(t.S / KN)}\ \text{kn}\times ${c(SHEAR, 3)} = ${c(VwH / KN)}\ \text{kn} = ${c(VwH, 2)}\ \text{m/s},\ \text{toward } ${c(toDeg, 0)}^\circ`);
+  rows.push(String.raw`\vec V_a = (${c(t.u * SHEAR, 2)} - ${c(VS, 2)}\sin ${c(hdg, 0)}^\circ,\ \ ${c(t.v * SHEAR, 2)} - ${c(VS, 2)}\cos ${c(hdg, 0)}^\circ) = (${c(t.ua, 2)},\ ${c(t.va, 2)})\ \text{m/s}`);
+  rows.push(String.raw`V_a = ${c(t.Va, 2)}\ \text{m/s},\qquad \delta = ${c(dDeg)}^\circ`);
+  let html = `<div class="where">${state.leg ? "Westbound" : "Eastbound"}, ${MONTHS[state.m]}, ${fmt(state.pos / 1000 * ROUTE_NM)} nm from Houston, A = ${fmt(state.A)} m²</div>`;
+  html += `<p style="margin:4px 0">Wind ${fmt(t.S / KN, 1)} kn from ${fmt(fromDeg)}° at 10 m, ship heading ${fmt(hdg)}°.</p>`;
+  html += rows.map(r => `<div class="eq">\\[${r}\\]</div>`).join("");
+  if (t.delta >= DELTA_MAX) {
+    html += `<div class="eq">\\[\\delta = ${c(dDeg)}^\\circ > ${CONFIG.MAX_DELTA_DEG}^\\circ \\;\\Rightarrow\\; \\text{wind too far forward},\\ T = 0\\]</div>`;
+  } else if (t.Va < CONFIG.MIN_APPARENT_WIND_MS) {
+    html += `<div class="eq">\\[V_a \\lt ${CONFIG.MIN_APPARENT_WIND_MS}\\ \\text{m/s} \\;\\Rightarrow\\; T = 0\\]</div>`;
+  } else {
+    const Vr = t.Va * COS_E * Math.cos(t.phi);
+    html += `<div class="eq">\\[\\varphi = ${CONFIG.AZIMUTH_RULE === "optimal" ? "\\text{optimal}" : "\\delta/2"} = ${c(pDeg)}^\\circ,\\qquad V_r = ${c(t.Va, 2)}\\cos ${c(PAR.ELEVATION_DEG, 0)}^\\circ\\cos ${c(pDeg)}^\\circ = ${c(Vr, 2)}\\ \\text{m/s}\\]</div>`;
+    html += `<div class="eq">\\[K = ${c(K_PER_M2, 3)}\\times ${c(state.A, 0)} = ${c(K, 0)}\\ \\tfrac{\\text{N}}{(\\text{m/s})^2},\\qquad F = K V_r^2 = ${c(t.Fraw / 1000, 0)}\\ \\text{kN}\\]</div>`;
+    if (t.capped) html += `<div class="eq">\\[F \\gt ${c(FMAX / 1000, 0)}\\ \\text{kN} \\;\\Rightarrow\\; ${LAND_RULE ? "\\text{land the kite},\\ T = 0" : "\\text{depower to } F = " + c(FMAX / 1000, 0) + "\\ \\text{kN}"}\\]</div>`;
+    if (t.F > 0) {
+      html += `<div class="eq">\\[T = F\\cos ${c(PAR.ELEVATION_DEG, 0)}^\\circ\\cos(${c(dDeg)}^\\circ - ${c(pDeg)}^\\circ) = ${c(t.T / 1000, 1)}\\ \\text{kN}\\]</div>`;
+      const P0 = t.T * VS / PAR.ETA_D / 1000;
+      html += `<div class="eq">\\[P = \\frac{T V_s}{\\eta_D} = \\frac{${c(t.T / 1000, 1)}\\ \\text{kN}\\times ${c(VS, 2)}\\ \\text{m/s}}{${c(PAR.ETA_D, 2)}} = ${c(P0, 0)}\\ \\text{kW} = ${c(100 * P0 / CONFIG.ME_POWER_KW, 1)}\\%\\ \\text{of ME}\\]</div>`;
+    }
+  }
+  html += `<p class="callout">Averaged over this month's wind scatter instead of the single typical condition: T = ${fmt(pe.ET / 1000, 1)} kN with the kite airborne ${fmt(100 * pe.flyFrac)}% of the time. The two differ because thrust grows with the square of the wind and the kite only flies in part of the scatter.</p>`;
+  const el = $("worked");
+  if (window.MathJax && MathJax.typesetClear) MathJax.typesetClear([el]);
+  el.innerHTML = html;
+  clearTimeout(workedTimer);
+  workedTimer = setTimeout(() => { if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([el]).catch(() => {}); }, 120);
+}
+
+// ---------- charts ----------
+function gridStep(ymax) { for (const s of [0.5, 1, 2, 2.5, 5, 10, 20, 25, 50]) if (ymax / s <= 6 + 1e-9) return s; return ymax / 4; }
+function niceMax(v) { if (v <= 0) return 1; const e = Math.pow(10, Math.floor(Math.log10(v))), f = v / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * e; }
+function drawMonthly() {
+  const W = 520, H = 230, ml = 34, mr = 6, mt = 14, mb = 26, ann = state.ann;
+  const pct = [0, 1].map(leg => ann.T[leg].map(t => 100 * t * VS / PAR.ETA_D / 1000 / CONFIG.ME_POWER_KW));
+  const ymax = niceMax(Math.max(...pct[0], ...pct[1]) * 1.08), pw = W - ml - mr, ph = H - mt - mb, gw = pw / 12;
+  const y = v => mt + ph * (1 - v / ymax), bw = (gw - 10) / 2;
+  let s = `<rect x="${ml + state.m * gw}" y="${mt - 6}" width="${gw}" height="${ph + 6}" fill="var(--band)"/>`;
+  const step = gridStep(ymax), nT = Math.round(ymax / step);
+  for (let i = 0; i <= nT; i++) { const v = i * step, yy = y(v); s += `<line x1="${ml}" x2="${W - mr}" y1="${yy}" y2="${yy}" stroke="var(--rule)" stroke-width="${i ? 0.6 : 1}"/><text x="${ml - 5}" y="${yy + 3.5}" text-anchor="end">${fmt(v, step < 1 ? 1 : 0)}%</text>`; }
+  const bar = (x, v, col) => { const yy = y(v), h = mt + ph - yy, r = Math.min(3, h); return h <= 0.2 ? "" : `<path d="M${x} ${mt + ph}V${yy + r}Q${x} ${yy} ${x + r} ${yy}H${x + bw - r}Q${x + bw} ${yy} ${x + bw} ${yy + r}V${mt + ph}Z" fill="${col}"/>`; };
+  for (let m = 0; m < 12; m++) {
+    const x0 = ml + m * gw + 4;
+    s += bar(x0, pct[0][m], "var(--kite)") + bar(x0 + bw + 2, pct[1][m], "var(--west)");
+    s += `<text x="${ml + m * gw + gw / 2}" y="${H - 9}" text-anchor="middle" style="${m === state.m ? "fill:var(--ink);font-weight:500" : ""}">${MSHORT[m]}</text>`;
+    if (m === 4) s += `<text x="${ml + m * gw + 2}" y="${H}" style="font-size:9px">2026</text>`;
+    s += `<rect class="hit" data-m="${m}" x="${ml + m * gw}" y="${mt - 6}" width="${gw}" height="${ph + 6}" fill="transparent" style="cursor:pointer"/>`;
+  }
+  const m = state.m;
+  s += `<text x="${ml + m * gw + 4 + bw / 2}" y="${y(pct[0][m]) - 4}" text-anchor="middle" style="fill:var(--ink)">${fmt(pct[0][m], 1)}</text>`;
+  s += `<text x="${ml + m * gw + 6 + 1.5 * bw}" y="${y(pct[1][m]) - 4}" text-anchor="middle" style="fill:var(--ink)">${fmt(pct[1][m], 1)}</text>`;
+  $("mChart").innerHTML = s;
+  $("mChart").__pct = pct;
+}
+$("mChart").addEventListener("click", e => { const m = e.target.dataset && e.target.dataset.m; if (m !== undefined) { $("month").value = m; state.m = +m; schedule(); } });
+$("mChart").addEventListener("mousemove", e => {
+  const m = e.target.dataset && e.target.dataset.m, tip = $("mTip");
+  if (m === undefined) { tip.hidden = true; return; }
+  const pct = $("mChart").__pct, ann = state.ann;
+  tip.innerHTML = `<b>${MONTHS[m]}</b><br>East ${fmt(pct[0][m], 1)}% · kite up ${fmt(100 * ann.fly[0][m])}%<br>West ${fmt(pct[1][m], 1)}% · kite up ${fmt(100 * ann.fly[1][m])}%`;
+  tip.hidden = false; placeTip(tip, e, $("mPanel"));
+});
+$("mChart").addEventListener("mouseleave", () => { $("mTip").hidden = true; });
+function placeTip(tip, e, panel) {
+  const r = panel.getBoundingClientRect();
+  let x = e.clientX - r.left + 12, y = e.clientY - r.top - 10;
+  if (x + tip.offsetWidth > r.width - 4) x = e.clientX - r.left - tip.offsetWidth - 12;
+  tip.style.left = Math.max(4, x) + "px"; tip.style.top = Math.max(4, y - tip.offsetHeight) + "px";
+}
+
+function computeSweep() {
+  const areas = []; for (let A = SA.min; A <= SA.max + 1e-9; A += 50) areas.push(A);
+  state.sweep = areas.map(A => { const a = annual(A); return { A, rt: a.pctRt, e: a.pct[0], w: a.pct[1] }; });
+}
+function drawAreaChart() {
+  const W = 440, H = 230, ml = 34, mr = 10, mt = 14, mb = 28, sw = state.sweep;
+  if (!sw) { $("aChart").innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle">computing…</text>`; return; }
+  const ymax = niceMax(Math.max(10.5, ...sw.map(d => d.e)) * 1.05), pw = W - ml - mr, ph = H - mt - mb;
+  const x = A => ml + pw * (A - SA.min) / (SA.max - SA.min), y = v => mt + ph * (1 - v / ymax);
+  let s = `<rect x="${ml}" y="${y(10)}" width="${pw}" height="${y(6) - y(10)}" fill="var(--band)"/>`;
+  const step = gridStep(ymax), nT = Math.round(ymax / step);
+  for (let i = 0; i <= nT; i++) { const v = i * step, yy = y(v); s += `<line x1="${ml}" x2="${W - mr}" y1="${yy}" y2="${yy}" stroke="var(--rule)" stroke-width="${i ? 0.6 : 1}"/><text x="${ml - 5}" y="${yy + 3.5}" text-anchor="end">${fmt(v, step < 1 ? 1 : 0)}%</text>`; }
+  const tickStep = SA.max - SA.min > 1000 ? 250 : 200;
+  for (let A = Math.ceil(SA.min / tickStep) * tickStep; A <= SA.max; A += tickStep) s += `<text x="${x(A)}" y="${H - 12}" text-anchor="${A === SA.max ? "end" : "middle"}">${fmt(A)}</text>`;
+  s += `<text x="${W - mr}" y="${H - 1}" text-anchor="end">kite area, m²</text>`;
+  const line = (key, col, w) => `<path d="${sw.map((d, i) => (i ? "L" : "M") + x(d.A).toFixed(1) + " " + y(d[key]).toFixed(1)).join("")}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linejoin="round"/>`;
+  s += `<g class="${state.sweepStale ? "sweep-stale" : ""}">` + line("e", "var(--kite)", 1.6) + line("w", "var(--west)", 1.6) + line("rt", "var(--ink)", 2.4) + `</g>`;
+  const a = state.ann, xa = x(state.A);
+  s += `<line x1="${xa}" x2="${xa}" y1="${mt}" y2="${mt + ph}" stroke="var(--ink-3)" stroke-dasharray="3 3"/>`;
+  s += `<circle cx="${xa}" cy="${y(a.pctRt)}" r="4.5" fill="var(--ink)" stroke="var(--paper)" stroke-width="2"/>`;
+  s += `<text x="${xa + (xa > W - 90 ? -8 : 8)}" y="${y(a.pctRt) - 8}" text-anchor="${xa > W - 90 ? "end" : "start"}" style="fill:var(--ink);font-weight:500">${fmt(a.pctRt, 1)}%</text>`;
+  s += `<rect id="aHit" x="${ml}" y="${mt}" width="${pw}" height="${ph}" fill="transparent"/>`;
+  $("aChart").innerHTML = s;
+  $("aChart").__x = { ml, pw };
+}
+$("aChart").addEventListener("mousemove", e => {
+  const sw = state.sweep, tip = $("aTip"); if (!sw || e.target.id !== "aHit") { tip.hidden = true; return; }
+  const svg = $("aChart"), pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse()), { ml, pw } = svg.__x;
+  const A = SA.min + (p.x - ml) / pw * (SA.max - SA.min);
+  const d = sw.reduce((b, q) => Math.abs(q.A - A) < Math.abs(b.A - A) ? q : b);
+  tip.innerHTML = `<b>${d.A} m²</b><br>Round trip ${fmt(d.rt, 1)}%<br>East ${fmt(d.e, 1)}% · West ${fmt(d.w, 1)}%`;
+  tip.hidden = false; placeTip(tip, e, $("aPanel"));
+});
+$("aChart").addEventListener("mouseleave", () => { $("aTip").hidden = true; });
+$("aChart").addEventListener("click", e => {
+  if (e.target.id !== "aHit" || areaLocked()) return;
+  const svg = $("aChart"), pt = svg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse()), { ml, pw } = svg.__x;
+  let A = SA.min + (p.x - ml) / pw * (SA.max - SA.min);
+  A = Math.round(A / SA.step) * SA.step; area.value = A; state.A = +area.value; schedule(true);
+});
+
+// ---------- tiles ----------
+function drawTiles() {
+  const a = state.ann;
+  $("tRt").textContent = fmt(a.pctRt, 1) + "%";
+  $("tRtS").textContent = `${fmt(a.Prt)} kW of ${fmt(CONFIG.ME_POWER_KW)} kW main-engine power`;
+  $("tE").textContent = fmt(a.pct[0], 1) + "%";
+  $("tES").textContent = `${fmt(a.Tleg[0] / 1000)} kN mean · kite up ${fmt(100 * a.flyLeg[0])}%`;
+  $("tW").textContent = fmt(a.pct[1], 1) + "%";
+  $("tWS").textContent = `${fmt(a.Tleg[1] / 1000)} kN mean · kite up ${fmt(100 * a.flyLeg[1])}%`;
+  $("tF").innerHTML = `${fmt(a.fuel)} <span style="font-size:0.55em;color:var(--ink-2)">t/yr</span>`;
+  $("tFS").textContent = `${fmt(a.fuel * CONFIG.CO2_PER_T_FUEL)} t CO₂ · ${CONFIG.ROUND_TRIPS_PER_YEAR} round trips`;
+}
+
+// ---------- config table ----------
+(function drawCfg() {
+  const desc = {
+    RHO: "Air density at kite height, kg/m³", CL: "Lift coefficient", CD: "Drag coefficient", TETHER_LENGTH_M: "Tether length, m",
+    ELEVATION_DEG: "Tether elevation, °", MAX_TETHER_FORCE_N: "Tether force cap, N", STRONG_WIND_RULE: "\"depower\" or \"land\" above the cap",
+    MAX_DELTA_DEG: "Largest δ the kite can fly at, °", MIN_APPARENT_WIND_MS: "Lightest apparent wind it flies in, m/s", AZIMUTH_RULE: "\"half\" (φ = δ/2) or \"optimal\"",
+    SHEAR_ALPHA: "Wind-shear exponent", WIND_MODEL: "\"scatter\" or \"mean\" (monthly mean speed only)", SAMPLES: "Wind samples per point and month",
+    ROUTE_SAMPLES: "Points along the route", SHIP_SPEED_KN: "Ship speed, kn", ME_POWER_KW: "Main-engine power at that speed, kW", ETA_D: "Propulsive efficiency credit",
+    SFOC_G_PER_KWH: "Fuel consumption, g/kWh", ROUND_TRIPS_PER_YEAR: "Round trips per year", CO2_PER_T_FUEL: "t CO₂ per t fuel",
+    AREA_M2: "Starting kite area, m²"
+  };
+  const slid = { AREA_M2: 1, TETHER_LENGTH_M: 1, ELEVATION_DEG: 1, CD: 1, MAX_TETHER_FORCE_N: 1, STRONG_WIND_RULE: 1 };
+  document.querySelector("#cfgTable tbody").innerHTML = Object.entries(CONFIG).map(([k, v]) =>
+    `<tr><td><code>${k}</code></td><td><code>${typeof v === "string" ? '"' + v + '"' : v}</code></td><td>${desc[k] || ""}${slid[k] ? " · <b>slider</b> (start value)" : ""}</td></tr>`).join("");
+})();
+
+// ---------- position ticks ----------
+$("posTicks").innerHTML = WAYPOINTS.map((w, i) => `<span class="${i === 0 ? "first" : i === NSEG ? "last" : ""}" style="left:${(100 * CUM[i] / ROUTE_NM).toFixed(2)}%">${w.short.replace("Mid-Atl ", "MA").replace("Florida Str.", "Fla.")}</span>`).join("");
+
+// ---------- render loop ----------
+let pending = false, areaChanged = true;
+function schedule(areaDirty) { if (areaDirty) areaChanged = true; if (pending) return; pending = true; requestAnimationFrame(render); }
+function render() {
+  pending = false;
+  if (geomDirty) { clearTimeout(geomTimer); precompute(); geomDirty = false; document.body.classList.remove("recalc"); scheduleSweep(); }
+  if (areaChanged) { state.ann = annual(state.A); areaChanged = false; drawTiles(); drawAreaChart(); drawChips(); drawInputs(); }
+  $("areaVal").textContent = `${fmt(state.A)} m²`;
+  $("monthVal").textContent = MONTHS[state.m];
+  const pe = pointEval(state.A, state.pos / 1000 * ROUTE_NM, state.m, state.leg);
+  drawMonthly(); drawMap(); drawDial(pe); drawReadout(pe); drawWorked(pe);
+}
+area.addEventListener("input", () => { state.A = +area.value; schedule(true); });
+$("month").addEventListener("input", e => { state.m = +e.target.value; schedule(); });
+$("pos").addEventListener("input", e => { state.pos = +e.target.value; schedule(); });
+for (const [id, leg] of [["legE", 0], ["legW", 1]]) $(id).addEventListener("click", () => {
+  state.leg = leg; $("legE").setAttribute("aria-checked", String(!leg)); $("legW").setAttribute("aria-checked", String(!!leg)); schedule();
+});
+document.querySelector(".seg").addEventListener("keydown", e => {
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft") { const b = state.leg ? $("legE") : $("legW"); b.click(); b.focus(); e.preventDefault(); }
+});
+
+render();
+setTimeout(() => { computeSweep(); drawAreaChart(); }, 30);
+</script>
+
+</body>
+</html>
