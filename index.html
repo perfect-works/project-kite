@@ -114,6 +114,7 @@ body.recalc #annual .tiles, body.recalc #annual .charts, body.recalc .pt-grid { 
 .seg button { font: inherit; font-size: 0.9rem; padding: 3px 10px; border: 0; background: var(--paper); color: var(--ink); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
 .seg button + button { border-left: 1px solid var(--ink-3); }
 .seg button[aria-checked="true"] { background: var(--band); font-weight: 600; }
+.seg button:disabled { color: var(--ink-3); cursor: not-allowed; opacity: 0.6; }
 .inp .seg { margin-top: 4px; }
 
 .pt-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 12px; align-items: start; }
@@ -174,15 +175,57 @@ mjx-container svg { display: inline-block; }
   .inputs { grid-template-columns: minmax(0, 1fr); }
   .areabar .chips { display: none; }
 }
+
+/* tabs */
+.tabbar { display: flex; gap: 0; border-bottom: 1px solid var(--rule); margin-bottom: 14px; }
+.tabbar button { font: inherit; font-size: 0.95rem; padding: 6px 14px; margin-bottom: -1px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--ink-2); cursor: pointer; }
+.tabbar button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--kite); font-weight: 600; }
+.tabbar button:focus-visible { outline: 2px solid var(--kite); outline-offset: -2px; }
+
+/* deployment tab */
+.dp-stage { border: 1px solid var(--rule); margin-top: 12px; position: relative; }
+.dp-stage svg { display: block; width: 100%; height: auto; touch-action: none; user-select: none; }
+.dp-stage svg text { font-family: var(--f-body); paint-order: stroke; stroke: var(--sea); stroke-width: 4px; stroke-linejoin: round; }
+.dp-hint { position: absolute; left: 12px; top: 10px; font-size: 0.82rem; color: var(--ink-3); pointer-events: none; }
+.dp-streak { stroke: var(--wind); stroke-width: 1.4; stroke-linecap: round; fill: none; opacity: 0.55; stroke-dasharray: 26 90; animation: dp-blow linear infinite; }
+@keyframes dp-blow { from { stroke-dashoffset: 116; } to { stroke-dashoffset: 0; } }
+#dKite { cursor: grab; outline: none; }
+#dKite.dragging { cursor: grabbing; }
+.dp-halo { fill: var(--kite); opacity: 0; transition: opacity 0.15s; }
+#dKite:hover .dp-halo, #dKite.dragging .dp-halo { opacity: 0.15; }
+#dKite:focus-visible .dp-halo { opacity: 0.3; }
+.dp-row { margin-top: 12px; }
+.dp-wind { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--rule); }
+.dp-wind > div { padding: 8px 12px; border-left: 1px solid var(--rule); min-width: 0; display: flex; flex-direction: column; }
+.dp-wind > div:first-child { border-left: 0; }
+.dp-wind span { font-size: 0.82rem; color: var(--ink-2); }
+.dp-wind b { font-family: var(--f-data); font-size: 1.15rem; font-weight: 600; }
+.dp-wind i { font-style: normal; font-size: 0.8rem; color: var(--ink-3); }
+.dp-eq { background: var(--band); padding: 6px 12px; overflow-x: auto; }
+.dp-notes { color: var(--ink-2); font-size: 0.9rem; max-width: 80ch; padding-left: 20px; }
+.dp-notes li { margin-bottom: 4px; }
+@media (prefers-reduced-motion: reduce) { .dp-streak { animation: none; } }
+@media (max-width: 700px) { .dp-row, .dp-wind { grid-template-columns: minmax(0, 1fr); } .dp-wind > div { border-left: 0; border-top: 1px solid var(--rule); } .dp-wind > div:first-child { border-top: 0; } }
 </style>
 </head>
 <body>
 
 
 <div class="wrap" style="padding-bottom:0">
+  <div class="tabbar" role="tablist" aria-label="Page">
+    <button type="button" role="tab" data-go="thrust" aria-selected="true">Thrust model</button>
+    <button type="button" role="tab" data-go="deploy" aria-selected="false">Deployment</button>
+  </div>
+  <div data-tab="thrust">
   <h1>Kite Thrust Model V2</h1>
   <div class="eyebrow">Project Kite, OCEN 407</div>
   <p class="sub">How much a towing kite pulls the <b>Hanwha MT-50</b> MR tanker on Houston ⇄ Rotterdam, month by month and point by point, using the team's ERA5 monthly winds. Kite area sits in the bar that follows you down the page; the other design inputs are just below it. Lock any slider you don't want bumped. Everything else lives in the code.</p>
+  </div>
+  <div data-tab="deploy" hidden>
+  <h1>Kite Deployment: Foremast Base Moment</h1>
+  <div class="eyebrow">Project Kite, OCEN 407</div>
+  <p class="sub">While the kite is held on the existing foremast before release, its sideways force bends the mast. The kite goes up open and fills like a flag, so the whole of its force can push sideways until it is released at the top. <b>Drag the kite up or down the mast</b> to change its height. The wind comes from the month, position and leg below (shared with the Thrust model tab), and the kite area from the bar that follows you down the page.</p>
+  </div>
 </div>
 
 <div class="areabar">
@@ -198,6 +241,7 @@ mjx-container svg { display: inline-block; }
 </div>
 
 <div class="wrap">
+<div data-tab="thrust">
 
 <section id="design" style="margin-top:22px">
   <div class="sec-head">
@@ -482,6 +526,56 @@ mjx-container svg { display: inline-block; }
     <p class="note" style="margin-top:14px">References: Traut et al., Applied Energy 113 (2014) 362–372 · Loyd, J. Energy 4 (1980) · ERA5 via Open-Meteo, team sheet "Route1 Houston to Rotterdam".</p>
   </article>
 </section>
+</div>
+
+<div data-tab="deploy" hidden>
+<section id="deploy" style="margin-top:22px">
+  <div class="tiles" style="grid-template-columns:repeat(3,minmax(0,1fr))">
+    <div class="tile"><div class="k">Kite height on mast, h</div><div class="v" id="dTH">–</div><div class="s">above the fo'c'sle deck</div></div>
+    <div class="tile"><div class="k">Side force at the grip</div><div class="v" id="dTF">–</div><div class="s" id="dTFs">–</div></div>
+    <div class="tile lead"><div class="k">Base moment, M = side force × h</div><div class="v" id="dTM">–</div><div class="s" id="dTMs">–</div></div>
+  </div>
+
+  <div class="dp-stage">
+    <div class="dp-hint">Drag the kite (or select it and use ↑ ↓)</div>
+    <svg id="dScene" viewBox="0 0 900 640" role="img" aria-label="Side view of the kite on the foremast; drag the kite to change its height"></svg>
+  </div>
+
+  <div class="pt-ctl" style="margin-top:12px">
+    <div class="ctl">
+      <label for="dMonth">Month <span class="num" id="dMonthVal"></span></label>
+      <input id="dMonth" type="range" min="0" max="11" step="1" value="4">
+    </div>
+    <div class="ctl">
+      <label for="dPos">Position <span class="num" id="dPosVal"></span></label>
+      <input id="dPos" type="range" min="0" max="1000" step="1" value="620">
+      <div class="ticks" id="dPosTicks"></div>
+    </div>
+    <div class="ctl">
+      <span class="label">Leg</span>
+      <div class="seg" role="radiogroup" aria-label="Leg">
+        <button type="button" role="radio" id="dLegE" aria-checked="true"><i class="sw e"></i>East · laden</button>
+        <button type="button" role="radio" id="dLegW" aria-checked="false"><i class="sw w"></i>West · ballast</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="dp-row">
+    <div class="dp-wind" id="dWind"></div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-head"><h2>How it's calculated</h2><p>Quasi-static, kite held at the grip</p></div>
+  <div class="dp-eq" id="dEq"></div>
+  <ul class="dp-notes">
+    <li><b>Mast:</b> existing foremast, measured on the GA drawing (Drive: Retraction/Deck Equipment) at 14.45 px/m. Fo'c'sle deck 22.5 m above baseline (11.5 m above the 11 m waterline), deckhouse top 2.4 m and mast structure top 8.7 m above the deck.</li>
+    <li><b>Wind:</b> the same ERA5 monthly mean as the Thrust model tab at the chosen point, shear-corrected with \(V(z) = V_{10}\,(z/10)^{0.11}\) to the kite's height above the water, plus the ship's own 14.5 kn headwind.</li>
+    <li><b>Kite:</b> area from the bar above; \(C_L\) and \(C_D\) from the L/D slider on the Thrust model tab. While it fills, the canopy isn't flying yet, so its whole aerodynamic force \(C_R = \sqrt{C_L^2 + C_D^2}\) is taken as pushing sideways, times the ABS 1.16 gust factor. Kite weight and the tether act along the mast and add no moment.</li>
+    <li><b>Not yet included:</b> the foremast's own section and stress check, gusts beyond the 1.16 factor, ship motion, and figure-8 flight before release (which would be several MN·m, so release has to come first).</li>
+  </ul>
+</section>
+</div>
 </div>
 
 <script>
@@ -1283,6 +1377,7 @@ function render() {
   $("monthVal").textContent = MONTHS[state.m];
   const pe = pointEval(state.A, state.pos / 1000 * ROUTE_NM, state.m, state.leg);
   drawMonthly(); drawMap(); drawDial(pe); drawReadout(pe); drawWorked(pe);
+  drawDeploy();
 }
 area.addEventListener("input", () => { state.A = +area.value; schedule(true); });
 $("month").addEventListener("input", e => { state.m = +e.target.value; schedule(); });
@@ -1293,6 +1388,232 @@ for (const [id, leg] of [["legE", 0], ["legW", 1]]) $(id).addEventListener("clic
 document.querySelector(".seg").addEventListener("keydown", e => {
   if (e.key === "ArrowRight" || e.key === "ArrowLeft") { const b = state.leg ? $("legE") : $("legW"); b.click(); b.focus(); e.preventDefault(); }
 });
+
+// =====================================================================
+//  DEPLOYMENT TAB: moment at the base of the existing foremast while the
+//  kite is held on it before release. Wind = monthly mean at the chosen
+//  month / position / leg (same ERA5 data), shear-corrected to the kite's
+//  height on the mast, plus the ship's own headwind.
+// =====================================================================
+const DEPLOY = {
+  MAST_TOP_M: 8.7,        // mast structure top above fo'c'sle deck (GA drawing, 14.45 px/m)
+  DECKHOUSE_M: 2.4,       // deckhouse top above fo'c'sle deck: bottom of the carriage track
+  DECK_ABOVE_WL_M: 11.5,  // fo'c'sle deck above the 11 m design waterline (22.5 m above baseline)
+  GUST: 1.16,             // ABS pub. 315 gust factor (while-filling case)
+  ASPECT: 3.2,            // ram-air aspect ratio, sets the drawn chord: c = sqrt(A / AR)
+  H_START_M: 8.7          // starting kite height on the mast
+};
+const dState = { h: DEPLOY.H_START_M };
+
+function deployWind() {
+  const r = routeAt(state.pos / 1000 * ROUTE_NM);
+  const hdg = r.hdg + (state.leg ? Math.PI : 0);
+  const w = windAt(r.seg, r.f, state.m);
+  const k = w.S / Math.max(Math.hypot(w.U, w.V), 1e-9);          // mean speed along the mean direction
+  const sh = Math.pow((DEPLOY.DECK_ABOVE_WL_M + dState.h) / 10, PAR.SHEAR_ALPHA);
+  const ut = w.U * k * sh, vt = w.V * k * sh;                     // true wind at the kite, blowing toward
+  const ua = ut - VS * Math.sin(hdg), va = vt - VS * Math.cos(hdg); // apparent wind
+  const from = (u, v) => {                                        // angle off the bow it comes FROM, and which side
+    let d = Math.atan2(u, v) - hdg; d = Math.atan2(Math.sin(d), Math.cos(d));
+    const deg = 180 - Math.abs(d) / D2R, side = d > 0 ? "port" : "starboard";
+    return deg <= 90 ? `${fmt(deg)}° off the ${side} bow` : `${fmt(180 - deg)}° off the stern, ${side} side`;
+  };
+  const near = WAYPOINTS[r.f < 0.5 ? r.seg : r.seg + 1].short;
+  return { Vt: Math.hypot(ut, vt), Va: Math.hypot(ua, va), tf: from(ut, vt), af: from(ua, va), z: DEPLOY.DECK_ABOVE_WL_M + dState.h, near };
+}
+function deployLoads(Va) {
+  const q = 0.5 * PAR.RHO * state.A * Va * Va;
+  const CR = Math.hypot(PAR.CL, PAR.CD);
+  const side = DEPLOY.GUST * q * CR;     // filling canopy: whole force sideways, with gust
+  return { side: side / 1000, M: side * dState.h / 1000, CR };
+}
+
+// ---------- scene ----------
+const DNS = "http://www.w3.org/2000/svg";
+const dsvg = $("dScene");
+const DPX = 30, DECK_Y = 540, MAST_X = 330;
+const dyOf = h => DECK_Y - h * DPX;
+const del = (tag, attrs = {}, parent = dsvg) => {
+  const n = document.createElementNS(DNS, tag);
+  for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v);
+  parent.appendChild(n); return n;
+};
+del("defs").innerHTML = `
+  <marker id="dp-ah-kite" viewBox="0 0 10 10" refX="8" refY="5" markerUnits="userSpaceOnUse" markerWidth="16" markerHeight="16" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--kite)"/></marker>
+  <marker id="dp-ah-ink" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--ink-3)"/></marker>
+  <linearGradient id="dp-canopy" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--kite)" stop-opacity="0.95"/><stop offset="1" stop-color="var(--kite)" stop-opacity="0.55"/></linearGradient>
+  <pattern id="dp-hatch" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="8" stroke="var(--rule)" stroke-width="2"/></pattern>`;
+
+const dStreaks = [];
+const dWindG = del("g");
+for (let i = 0; i < 9; i++) {
+  const y = 70 + i * 50 + (i % 2) * 14;
+  const p = del("path", { d: `M-20 ${y} C 200 ${y - 6}, 500 ${y + 6}, 920 ${y}`, class: "dp-streak" }, dWindG);
+  p.style.animationDelay = `${-i * 0.37}s`; dStreaks.push(p);
+}
+const dWindLbl = del("text", { x: 24, y: 40, fill: "var(--wind)", "font-size": 13, "font-weight": 600 });
+
+del("rect", { x: 0, y: DECK_Y, width: 900, height: 100, fill: "url(#dp-hatch)" });
+del("line", { x1: 0, x2: 900, y1: DECK_Y, y2: DECK_Y, stroke: "var(--ink-3)", "stroke-width": 2.5 });
+del("text", { x: 880, y: DECK_Y + 26, "text-anchor": "end", fill: "var(--ink-3)", "font-size": 12 }).textContent = "Fo'c'sle deck · 22.5 m above baseline";
+del("rect", { x: MAST_X - 42, y: dyOf(DEPLOY.DECKHOUSE_M), width: 84, height: DEPLOY.DECKHOUSE_M * DPX, fill: "var(--band)", stroke: "var(--ink-3)", "stroke-width": 1.5 });
+del("text", { x: MAST_X + 14, y: dyOf(DEPLOY.DECKHOUSE_M / 2) + 4, "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 11 }).textContent = "deckhouse";
+
+const dMastTop = dyOf(DEPLOY.MAST_TOP_M), dMastBot = dyOf(DEPLOY.DECKHOUSE_M);
+for (const dx of [-7, 7]) del("line", { x1: MAST_X + dx, x2: MAST_X + dx, y1: dMastTop, y2: dMastBot, stroke: "var(--ink-3)", "stroke-width": 3 });
+let dLat = "";
+for (let y = dMastTop, k = 0; y < dMastBot - 1; y += 14, k++) {
+  const [xa, xb] = k % 2 ? [MAST_X + 7, MAST_X - 7] : [MAST_X - 7, MAST_X + 7];
+  dLat += `M${xa} ${y}L${xb} ${Math.min(y + 14, dMastBot)}`;
+}
+del("path", { d: dLat, stroke: "var(--ink-3)", "stroke-width": 1, fill: "none", opacity: 0.7 });
+del("line", { x1: MAST_X - 14, x2: MAST_X + 14, y1: dMastTop, y2: dMastTop, stroke: "var(--ink-3)", "stroke-width": 3 });
+
+del("rect", { x: MAST_X - 110, y: DECK_Y - 30, width: 62, height: 30, rx: 4, fill: "var(--paper)", stroke: "var(--ink-3)", "stroke-width": 1.25 });
+del("text", { x: MAST_X - 79, y: DECK_Y - 11, "text-anchor": "middle", fill: "var(--ink-2)", "font-size": 12 }).textContent = "winch";
+const dTether = del("path", { fill: "none", stroke: "var(--ink-3)", "stroke-width": 1.5, "stroke-dasharray": "6 4" });
+
+const dDim = del("line", { x1: 200, x2: 200, y2: DECK_Y, stroke: "var(--ink-3)", "stroke-width": 1, "marker-start": "url(#dp-ah-ink)", "marker-end": "url(#dp-ah-ink)" });
+const dDimExt = del("line", { x1: 192, stroke: "var(--ink-3)", "stroke-width": 0.8, "stroke-dasharray": "2 3" });
+const dDimTxt = del("text", { x: 188, "text-anchor": "end", fill: "var(--ink)", "font-size": 15, "font-weight": 600 });
+
+const dArc = del("path", { fill: "none", stroke: "var(--kite)", "stroke-linecap": "round", "marker-end": "url(#dp-ah-kite)" });
+const dMTxt = del("text", { x: MAST_X, y: DECK_Y + 74, "text-anchor": "middle", fill: "var(--kite)", "font-size": 16, "font-weight": 700 });
+const dSide = del("path", { fill: "none", stroke: "var(--kite)", "stroke-width": 4, "marker-end": "url(#dp-ah-kite)" });
+const dSideTxt = del("text", { fill: "var(--ink)", "font-size": 14, "font-weight": 600 });
+const dRaiseArrow = () => { dsvg.appendChild(dSide); dsvg.appendChild(dSideTxt); };
+
+// kite: the draggable part. The canopy is the ram-air profile turned on its side: chord vertical,
+// hanging off the downwind side of the grip with its face to the wind, so it catches as much air as
+// possible while it fills. Drawn for 300 m², scaled with kite area; clipped at the deck.
+const dKite = del("g", { id: "dKite", tabindex: 0, role: "slider", "aria-label": "Kite height on the mast", "aria-valuemin": DEPLOY.DECKHOUSE_M, "aria-valuemax": DEPLOY.MAST_TOP_M });
+del("circle", { class: "dp-halo", r: 34, cx: 0, cy: 0 }, dKite);
+dsvg.querySelector("defs").insertAdjacentHTML("beforeend", '<clipPath id="dp-above-deck" clipPathUnits="userSpaceOnUse"><rect id="dp-clip" x="-2000" y="-2000" width="4000" height="2000"/></clipPath>');
+const dKiteVis = del("g", { "clip-path": "url(#dp-above-deck)" }, dKite);
+const C0 = Math.sqrt(300 / DEPLOY.ASPECT) * DPX, THK = 0.17;   // chord ≈ 9.7 m at 300 m²
+const PROF = [];
+for (let i = 0; i <= 40; i++) {
+  const x = (1 - Math.cos(Math.PI * i / 40)) / 2;
+  const yt = 5 * THK * (0.2969 * Math.sqrt(x) - 0.126 * x - 0.3516 * x * x + 0.2843 * x ** 3 - 0.1036 * x ** 4);
+  const yc = 0.06 * (x < 0.4 ? (0.8 * x - x * x) / 0.16 : (0.2 + 0.8 * x - x * x) / 0.36);
+  PROF.push([x, yc + yt, yc - yt]);
+}
+// placement: leading edge 2.5 m downwind and 2.5 m above the grip, chord pointing down (rotate 86°)
+const KX = 2.5 * DPX, KY = -2.5 * DPX, ROT = 86 * D2R;
+const toScene = (px, py) => [px * Math.cos(ROT) - py * Math.sin(ROT) + KX, px * Math.sin(ROT) + py * Math.cos(ROT) + KY];
+const pUp = PROF.map(([x, u]) => [x * C0, -u * C0]);
+const pLo = PROF.filter(([x]) => x > 0.06).map(([x, , l]) => [x * C0, -l * C0]).reverse();   // gap at the nose = ram-air inlet
+const canopyG = del("g", { transform: `translate(${KX} ${KY}) rotate(86)` }, dKiteVis);
+const bridleG = del("g", { stroke: "var(--ink-3)", "stroke-width": 0.8 }, dKiteVis);
+for (const f of [0.1, 0.3, 0.5, 0.7, 0.9]) {   // lines from the grip to the upwind (lower) surface
+  const [, , l] = PROF[PROF.findIndex(([x]) => x >= f)];
+  const [bx, by] = toScene(f * C0, -l * C0);
+  del("line", { x1: 0, y1: 0, x2: bx.toFixed(1), y2: by.toFixed(1), "vector-effect": "non-scaling-stroke" }, bridleG);
+}
+del("path", { d: "M" + [...pUp, ...pLo].map(p => p.map(v => v.toFixed(1)).join(" ")).join("L"), fill: "url(#dp-canopy)", stroke: "var(--kite)", "stroke-width": 1.5, "stroke-linejoin": "round", "vector-effect": "non-scaling-stroke" }, canopyG);
+for (const f of [0.25, 0.5, 0.75]) {   // cell walls
+  const [, u, l] = PROF[PROF.findIndex(([x]) => x >= f)];
+  del("line", { x1: f * C0, x2: f * C0, y1: -u * C0, y2: -l * C0, stroke: "var(--sea)", "stroke-width": 1, opacity: 0.6, "vector-effect": "non-scaling-stroke" }, canopyG);
+}
+const dKiteLbl = del("text", { "text-anchor": "start", fill: "var(--ink-2)", "font-size": 12 }, dKite);
+del("rect", { x: -16, y: -12, width: 32, height: 24, rx: 4, fill: "var(--paper)", stroke: "var(--ink)", "stroke-width": 1.75 }, dKite);
+del("path", { d: "M-6 -3L0 -8L6 -3M-6 3L0 8L6 3", fill: "none", stroke: "var(--ink)", "stroke-width": 1.5 }, dKite);
+
+dRaiseArrow();
+
+// ---------- interaction: the kite is the height slider ----------
+function setDeployH(h) {
+  dState.h = Math.min(DEPLOY.MAST_TOP_M, Math.max(DEPLOY.DECKHOUSE_M, Math.round(h * 10) / 10));
+  drawDeploy();
+}
+const dSvgY = e => { const pt = dsvg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY; return pt.matrixTransform(dsvg.getScreenCTM().inverse()); };
+let dDragOff = 0;
+dKite.addEventListener("pointerdown", e => { dKite.setPointerCapture(e.pointerId); dKite.classList.add("dragging"); dDragOff = dSvgY(e).y - dyOf(dState.h); e.preventDefault(); });
+dKite.addEventListener("pointermove", e => { if (dKite.hasPointerCapture(e.pointerId)) setDeployH((DECK_Y - (dSvgY(e).y - dDragOff)) / DPX); });
+const dEnd = e => { if (dKite.hasPointerCapture(e.pointerId)) dKite.releasePointerCapture(e.pointerId); dKite.classList.remove("dragging"); };
+dKite.addEventListener("pointerup", dEnd); dKite.addEventListener("pointercancel", dEnd);
+dKite.addEventListener("keydown", e => {
+  const step = { ArrowUp: 0.1, ArrowRight: 0.1, ArrowDown: -0.1, ArrowLeft: -0.1, PageUp: 1, PageDown: -1 }[e.key];
+  if (e.key === "Home") setDeployH(DEPLOY.DECKHOUSE_M); else if (e.key === "End") setDeployH(DEPLOY.MAST_TOP_M);
+  else if (step) setDeployH(dState.h + step); else return;
+  e.preventDefault();
+});
+dsvg.addEventListener("pointerdown", e => {
+  if (e.target.closest("#dKite")) return;
+  const p = dSvgY(e);
+  if (Math.abs(p.x - MAST_X) < 30 && p.y > dMastTop - 20 && p.y < dMastBot + 10) setDeployH((DECK_Y - p.y) / DPX);
+});
+
+// mirrored route controls: write the shared state, redraw both tabs
+$("dPosTicks").innerHTML = $("posTicks").innerHTML;
+$("dMonth").addEventListener("input", e => { state.m = +e.target.value; $("month").value = state.m; schedule(); });
+$("dPos").addEventListener("input", e => { state.pos = +e.target.value; $("pos").value = state.pos; schedule(); });
+for (const [id, leg] of [["dLegE", 0], ["dLegW", 1]]) $(id).addEventListener("click", () => $(leg ? "legW" : "legE").click());
+
+// ---------- draw ----------
+let dEqTimer = null;
+function drawDeploy() {
+  const W = deployWind(), L = deployLoads(W.Va), gy = dyOf(dState.h), s = Math.sqrt(state.A / 300);
+
+  // mirrored controls
+  $("dMonth").value = state.m; $("dPos").value = state.pos;
+  $("dMonthVal").textContent = MONTHS[state.m]; $("dPosVal").textContent = `near ${W.near}`;
+  $("dLegE").setAttribute("aria-checked", String(!state.leg)); $("dLegW").setAttribute("aria-checked", String(!!state.leg));
+  // scene
+  dKite.setAttribute("transform", `translate(${MAST_X} ${gy})`);
+  dKite.setAttribute("aria-valuenow", dState.h.toFixed(1)); dKite.setAttribute("aria-valuetext", `${dState.h.toFixed(1)} metres`);
+  dKiteVis.setAttribute("transform", `scale(${s.toFixed(3)})`);
+  dKiteLbl.setAttribute("x", ((KX + 0.2 * THK * C0) * s + 16).toFixed(1)); dKiteLbl.setAttribute("y", (KY * s - 14).toFixed(1));
+  dKiteLbl.textContent = `${fmt(state.A)} m² kite, filling (to scale)`;
+  $("dp-clip").setAttribute("height", (2000 + (DECK_Y - gy) / s).toFixed(1));
+  dTether.setAttribute("d", `M${MAST_X - 10} ${gy + 12}V${DECK_Y - 15}H${MAST_X - 48}`);
+  dDim.setAttribute("y1", gy);
+  dDimExt.setAttribute("x2", MAST_X - 18); dDimExt.setAttribute("y1", gy); dDimExt.setAttribute("y2", gy);
+  dDimTxt.setAttribute("y", (gy + DECK_Y) / 2 + 5); dDimTxt.textContent = `h = ${dState.h.toFixed(1)} m`;
+
+  const fLen = 30 + 230 * Math.min(1, L.side / 70);
+  dSide.setAttribute("d", `M${MAST_X + 18} ${gy}H${MAST_X + 18 + fLen}`);
+  dSideTxt.setAttribute("x", MAST_X + 28 + fLen); dSideTxt.setAttribute("y", gy + 5);
+  dSideTxt.textContent = `side force ${fmt(L.side, 1)} kN`;
+  dArc.setAttribute("d", `M${MAST_X - 70} ${DECK_Y + 16} A 70 26 0 0 0 ${MAST_X + 70} ${DECK_Y + 16}`);
+  dArc.setAttribute("stroke-width", (2 + 10 * Math.min(1, L.M / 600)).toFixed(1));
+  dMTxt.textContent = `M = ${fmt(L.M)} kN·m`;
+
+  const dur = W.Va > 0.1 ? Math.max(0.35, 18 / W.Va) : 0;
+  for (const p of dStreaks) { p.style.animationDuration = `${dur}s`; p.style.opacity = 0.25 + 0.4 * Math.min(1, W.Va / 20); }
+  dWindLbl.textContent = `apparent wind ${fmt(W.Va, 1)} m/s →`;
+
+  // tiles + wind readout + worked line
+  $("dTH").textContent = `${dState.h.toFixed(1)} m`;
+  $("dTF").textContent = `${fmt(L.side, 1)} kN`;
+  $("dTFs").textContent = "whole kite force while filling, × 1.16 gust";
+  $("dTM").textContent = `${fmt(L.M)} kN·m`;
+  $("dTMs").textContent = `${MONTHS[state.m]}, near ${W.near}, ${state.leg ? "westbound" : "eastbound"}`;
+  $("dWind").innerHTML =
+    `<div><span>True wind at the kite (${fmt(W.z, 1)} m up)</span><b class="num">${fmt(W.Vt, 1)} m/s</b><i>from ${W.tf}</i></div>` +
+    `<div><span>Ship's own headwind</span><b class="num">${fmt(VS, 2)} m/s</b><i>${fmt(CONFIG.SHIP_SPEED_KN, 1)} kn, from dead ahead</i></div>` +
+    `<div><span>Apparent wind on the kite</span><b class="num">${fmt(W.Va, 1)} m/s</b><i>from ${W.af}</i></div>`;
+  const cTxt = `${DEPLOY.GUST} × C<sub>R</sub>`;
+  const cVal = DEPLOY.GUST * L.CR;
+  const c = (x, d = 1) => fmt(x, d).replace(/,/g, "{,}");
+  const eqEl = $("dEq");
+  if (window.MathJax && MathJax.typesetClear) MathJax.typesetClear([eqEl]);
+  eqEl.innerHTML =
+    `<div class="eq">\\[F_{\\text{side}} = ${DEPLOY.GUST}\\cdot\\tfrac12 \\rho A C_R V_a^2 = ${DEPLOY.GUST}\\times\\tfrac12 \\times ${c(PAR.RHO)} \\times ${c(state.A, 0)} \\times ${c(L.CR, 3)} \\times ${c(W.Va, 1)}^2 = ${c(L.side, 1)}\\ \\text{kN}\\]</div>` +
+    `<div class="eq">\\[M = F_{\\text{side}}\\, h = ${c(L.side, 1)}\\ \\text{kN} \\times ${c(dState.h, 1)}\\ \\text{m} = \\mathbf{${c(L.M, 0)}\\ \\text{kN·m}}\\]</div>`;
+  clearTimeout(dEqTimer);
+  dEqTimer = setTimeout(() => { if (window.MathJax && MathJax.typesetPromise) MathJax.typesetPromise([eqEl]).catch(() => {}); }, 120);
+}
+
+// ---------- tabs ----------
+function showTab(name, push) {
+  for (const el of document.querySelectorAll("[data-tab]")) el.hidden = el.dataset.tab !== name;
+  for (const b of document.querySelectorAll(".tabbar button")) b.setAttribute("aria-selected", String(b.dataset.go === name));
+  if (push) history.replaceState(null, "", name === "deploy" ? "#deployment" : "#");
+  if (name === "deploy") drawDeploy();
+}
+for (const b of document.querySelectorAll(".tabbar button")) b.addEventListener("click", () => showTab(b.dataset.go, true));
+showTab(location.hash === "#deployment" ? "deploy" : "thrust", false);
 
 render();
 setTimeout(() => { computeSweep(); drawAreaChart(); }, 30);
