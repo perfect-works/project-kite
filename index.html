@@ -202,8 +202,8 @@ mjx-container svg { display: inline-block; }
 .dp-wind b { font-family: var(--f-data); font-size: 1.15rem; font-weight: 600; }
 .dp-wind i { font-style: normal; font-size: 0.8rem; color: var(--ink-3); }
 .dp-eq { background: var(--band); padding: 6px 12px; overflow-x: auto; }
-.dp-notes { color: var(--ink-2); font-size: 0.9rem; max-width: 80ch; padding-left: 20px; }
-.dp-notes li { margin-bottom: 4px; }
+.dp-est { margin: 8px 0 0; padding: 8px 12px; border-left: 3px solid var(--west); background: var(--band); font-size: 0.88rem; color: var(--ink-2); }
+.dp-est b { color: var(--ink); }
 @media (prefers-reduced-motion: reduce) { .dp-streak { animation: none; } }
 @media (max-width: 700px) { .dp-row, .dp-wind { grid-template-columns: minmax(0, 1fr); } .dp-wind > div { border-left: 0; border-top: 1px solid var(--rule); } .dp-wind > div:first-child { border-top: 0; } }
 </style>
@@ -531,7 +531,7 @@ mjx-container svg { display: inline-block; }
 <div data-tab="deploy" hidden>
 <section id="deploy" style="margin-top:22px">
   <div class="tiles" style="grid-template-columns:repeat(3,minmax(0,1fr))">
-    <div class="tile"><div class="k">Kite height on mast, h</div><div class="v" id="dTH">–</div><div class="s">above the fo'c'sle deck</div></div>
+    <div class="tile"><div class="k">Kite height on mast, h</div><div class="v" id="dTH">–</div><div class="s">above the fo'c'sle deck · mast top 8.7 m (estimated)</div></div>
     <div class="tile"><div class="k">Side force at the grip</div><div class="v" id="dTF">–</div><div class="s" id="dTFs">–</div></div>
     <div class="tile lead"><div class="k">Base moment, M = side force × h</div><div class="v" id="dTM">–</div><div class="s" id="dTMs">–</div></div>
   </div>
@@ -540,6 +540,7 @@ mjx-container svg { display: inline-block; }
     <div class="dp-hint">Drag the kite (or select it and use ↑ ↓)</div>
     <svg id="dScene" viewBox="0 0 900 640" role="img" aria-label="Side view of the kite on the foremast; drag the kite to change its height"></svg>
   </div>
+  <p class="dp-est"><b>Mast height is an estimate.</b> The 8.7 m mast top (above the fo'c'sle deck) was scaled off the GA drawing, not taken from a dimensioned foremast drawing. Replace it with the real foremast height when we have it: <code class="mono">DEPLOY.MAST_TOP_M</code> in the script.</p>
 
   <div class="pt-ctl" style="margin-top:12px">
     <div class="ctl">
@@ -566,14 +567,8 @@ mjx-container svg { display: inline-block; }
 </section>
 
 <section>
-  <div class="sec-head"><h2>How it's calculated</h2><p>Quasi-static, kite held at the grip</p></div>
+  <div class="sec-head"><h2>How it's calculated</h2><p>Quasi-static, kite held at the grip while it fills</p></div>
   <div class="dp-eq" id="dEq"></div>
-  <ul class="dp-notes">
-    <li><b>Mast:</b> existing foremast, measured on the GA drawing (Drive: Retraction/Deck Equipment) at 14.45 px/m. Fo'c'sle deck 22.5 m above baseline (11.5 m above the 11 m waterline), deckhouse top 2.4 m and mast structure top 8.7 m above the deck.</li>
-    <li><b>Wind:</b> the same ERA5 monthly mean as the Thrust model tab at the chosen point, shear-corrected with \(V(z) = V_{10}\,(z/10)^{0.11}\) to the kite's height above the water, plus the ship's own 14.5 kn headwind.</li>
-    <li><b>Kite:</b> area from the bar above; \(C_L\) and \(C_D\) from the L/D slider on the Thrust model tab. While it fills, the canopy isn't flying yet, so its whole aerodynamic force \(C_R = \sqrt{C_L^2 + C_D^2}\) is taken as pushing sideways, times the ABS 1.16 gust factor. Kite weight and the tether act along the mast and add no moment.</li>
-    <li><b>Not yet included:</b> the foremast's own section and stress check, gusts beyond the 1.16 factor, ship motion, and figure-8 flight before release (which would be several MN·m, so release has to come first).</li>
-  </ul>
 </section>
 </div>
 </div>
@@ -1457,7 +1452,7 @@ del("rect", { x: 0, y: DECK_Y, width: 900, height: 100, fill: "url(#dp-hatch)" }
 del("line", { x1: 0, x2: 900, y1: DECK_Y, y2: DECK_Y, stroke: "var(--ink-3)", "stroke-width": 2.5 });
 del("text", { x: 880, y: DECK_Y + 26, "text-anchor": "end", fill: "var(--ink-3)", "font-size": 12 }).textContent = "Fo'c'sle deck · 22.5 m above baseline";
 del("rect", { x: MAST_X - 42, y: dyOf(DEPLOY.DECKHOUSE_M), width: 84, height: DEPLOY.DECKHOUSE_M * DPX, fill: "var(--band)", stroke: "var(--ink-3)", "stroke-width": 1.5 });
-del("text", { x: MAST_X + 14, y: dyOf(DEPLOY.DECKHOUSE_M / 2) + 4, "text-anchor": "middle", fill: "var(--ink-3)", "font-size": 11 }).textContent = "deckhouse";
+del("text", { x: MAST_X - 4, y: dyOf(DEPLOY.DECKHOUSE_M / 2) + 4, "text-anchor": "start", fill: "var(--ink-3)", "font-size": 10 }).textContent = "deckhouse";
 
 const dMastTop = dyOf(DEPLOY.MAST_TOP_M), dMastBot = dyOf(DEPLOY.DECKHOUSE_M);
 for (const dx of [-7, 7]) del("line", { x1: MAST_X + dx, x2: MAST_X + dx, y1: dMastTop, y2: dMastBot, stroke: "var(--ink-3)", "stroke-width": 3 });
@@ -1468,6 +1463,7 @@ for (let y = dMastTop, k = 0; y < dMastBot - 1; y += 14, k++) {
 }
 del("path", { d: dLat, stroke: "var(--ink-3)", "stroke-width": 1, fill: "none", opacity: 0.7 });
 del("line", { x1: MAST_X - 14, x2: MAST_X + 14, y1: dMastTop, y2: dMastTop, stroke: "var(--ink-3)", "stroke-width": 3 });
+del("text", { x: MAST_X - 20, y: dMastTop - 8, "text-anchor": "end", fill: "var(--west)", "font-size": 12, "font-weight": 600 }).textContent = `mast top ${DEPLOY.MAST_TOP_M} m (estimated)`;
 
 del("rect", { x: MAST_X - 110, y: DECK_Y - 30, width: 62, height: 30, rx: 4, fill: "var(--paper)", stroke: "var(--ink-3)", "stroke-width": 1.25 });
 del("text", { x: MAST_X - 79, y: DECK_Y - 11, "text-anchor": "middle", fill: "var(--ink-2)", "font-size": 12 }).textContent = "winch";
@@ -1573,7 +1569,7 @@ function drawDeploy() {
 
   const fLen = 30 + 230 * Math.min(1, L.side / 70);
   dSide.setAttribute("d", `M${MAST_X + 18} ${gy}H${MAST_X + 18 + fLen}`);
-  dSideTxt.setAttribute("x", MAST_X + 28 + fLen); dSideTxt.setAttribute("y", gy + 5);
+  dSideTxt.setAttribute("x", MAST_X + Math.max(28 + fLen, 150 * s + 12)); dSideTxt.setAttribute("y", gy + 5);
   dSideTxt.textContent = `side force ${fmt(L.side, 1)} kN`;
   dArc.setAttribute("d", `M${MAST_X - 70} ${DECK_Y + 16} A 70 26 0 0 0 ${MAST_X + 70} ${DECK_Y + 16}`);
   dArc.setAttribute("stroke-width", (2 + 10 * Math.min(1, L.M / 600)).toFixed(1));
